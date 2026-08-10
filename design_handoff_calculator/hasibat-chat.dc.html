@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&amp;family=Almarai:wght@400;700;800&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#fff}
+a{color:#941249}a:hover{color:#D60859}
+@keyframes rwIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rwDot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+@media (max-width:600px){.qr{grid-template-columns:repeat(2,1fr) !important}}
+</style>
+</helmet>
+<div dir="rtl" style="direction:rtl;font-family:'Almarai','Baloo Bhaijaan 2',sans-serif;color:#2A1B22;background:#fff">
+  <div style="background:#FBF2E7;border-radius:22px;overflow:hidden">
+    <div style="height:10px;background:linear-gradient(90deg,#941249,#D60859 45%,#E8BD4B)"></div>
+    <div style="max-width:820px;margin:0 auto;padding:24px 20px 0;text-align:center">
+      <img src="https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png" alt="مركز رواد المستقبل للأطفال" style="height:60px;width:auto;max-width:56vw;object-fit:contain">
+      <h2 style="margin:8px 0 0;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:clamp(23px,5vw,32px);color:#D60859;line-height:1.25">حاسبة تسعير الاشتراكات</h2>
+      <div style="margin-top:4px;font-size:clamp(16px,3vw,19px);font-weight:700;color:#4A323E">أداة داخلية لإدارة المركز — تحسب السعر العادل من الباقات المعلنة</div>
+      <div style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:9px 18px;font-size:15px;font-weight:700;color:#941249">الأسعار متطابقة في الفترتين الصباحية والمسائية</div>
+    </div>
+    <div data-screen-label="المحادثة" style="max-width:720px;margin:18px auto 0;padding:0 20px">
+      <div style="background:#fff;border:2px solid #F0DECC;border-radius:26px;overflow:hidden;box-shadow:0 12px 30px rgba(148,18,73,.08)">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(120deg,#941249,#5E0B30)">
+          <div style="width:52px;height:52px;border-radius:999px;background:#fff;border:2px solid #E8BD4B;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <img src="https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png" alt="حاسبة التسعير" style="width:42px;height:42px;object-fit:contain">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:20px;color:#fff">حاسبة التسعير</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#F3D9E4"><span style="width:9px;height:9px;border-radius:999px;background:#E8BD4B;display:inline-block"></span> {{ stepLabel }}</div>
+          </div>
+        </div>
+        <div ref="{{ threadRef }}" style="background:#FBF2E7;padding:18px;display:flex;flex-direction:column;gap:14px;max-height:520px;overflow-y:auto">
+          <sc-for list="{{ msgs }}" as="m" hint-placeholder-count="2">
+            <div style="{{ m.rowStyle }}">
+              <sc-if value="{{ m.isGuide }}" hint-placeholder-val="{{ true }}">
+                <div style="width:40px;height:40px;border-radius:999px;background:#fff;border:2px solid #E8BD4B;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                  <img src="https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png" alt="" style="width:32px;height:32px;object-fit:contain">
+                </div>
+              </sc-if>
+              <div style="{{ m.bubbleStyle }}">
+                <div style="{{ m.textStyle }}">{{ m.text }}</div>
+                <sc-if value="{{ m.hasResult }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:12px;background:linear-gradient(120deg,#FFF7E8,#FFE9C4);border:2px solid #E8BD4B;border-radius:20px;padding:18px 16px;text-align:center">
+                    <div style="font-size:15px;font-weight:800;color:#941249">السعر العادل</div>
+                    <div style="margin-top:8px;display:flex;align-items:baseline;justify-content:center;gap:7px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:48px;color:#2A1B22;line-height:1">{{ m.total }} <span style="font-family:'Almarai',sans-serif;font-size:18px;font-weight:700;color:#4A323E">ريال</span></div>
+                    <div style="margin-top:6px;font-size:15px;font-weight:700;color:#4A323E">{{ m.summary }}</div>
+                    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px">
+                      <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;color:#941249">{{ m.perDay }}</div>
+                      <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;color:#941249">{{ m.perHour }}</div>
+                      <sc-if value="{{ m.hasDiscount }}" hint-placeholder-val="{{ false }}">
+                        <div style="background:#D60859;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:800;color:#fff">{{ m.discountLabel }}</div>
+                      </sc-if>
+                      <sc-if value="{{ m.hasSaving }}" hint-placeholder-val="{{ false }}">
+                        <div style="background:#fff;border:1.5px solid #E8BD4B;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:800;color:#941249">{{ m.savingLabel }}</div>
+                      </sc-if>
+                    </div>
+                    <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;text-align:right">
+                      <sc-for list="{{ m.basket }}" as="b" hint-placeholder-count="2">
+                        <div style="background:#fff;border:2px solid #EAD9C6;border-radius:16px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">
+                          <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                            <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:17px;color:#2A1B22">{{ b.title }}</div>
+                            <div style="font-size:14px;font-weight:700;color:#4A323E">{{ b.detail }}</div>
+                          </div>
+                          <div style="display:flex;align-items:baseline;gap:4px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:22px;color:#D60859">{{ b.sum }} <span style="font-family:'Almarai',sans-serif;font-size:13px;font-weight:700;color:#4A323E">ريال</span></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="margin-top:10px;font-size:13.5px;font-weight:700;color:#4A323E;line-height:1.8">{{ m.note }}</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ typing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:10px;align-items:flex-end">
+              <div style="width:40px;height:40px;border-radius:999px;background:#fff;border:2px solid #E8BD4B;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                <img src="https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png" alt="" style="width:32px;height:32px;object-fit:contain">
+              </div>
+              <div style="background:#fff;border:2px solid #F0DECC;border-radius:22px;border-bottom-right-radius:8px;padding:16px 20px;display:flex;gap:6px;align-items:center">
+                <span style="width:10px;height:10px;border-radius:999px;background:#941249;display:inline-block;animation:rwDot 1s infinite"></span>
+                <span style="width:10px;height:10px;border-radius:999px;background:#941249;display:inline-block;animation:rwDot 1s infinite .15s"></span>
+                <span style="width:10px;height:10px;border-radius:999px;background:#941249;display:inline-block;animation:rwDot 1s infinite .3s"></span>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="padding:16px 18px;background:#fff;border-top:2px solid #F0DECC">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+            <div style="font-size:15px;font-weight:800;color:#4A323E">{{ replyLabel }}</div>
+            <div style="display:flex;gap:8px">
+              <sc-if value="{{ canBack }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ back }}" style="border:2px solid #941249;color:#941249;background:#fff;border-radius:999px;min-height:48px;padding:0 20px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:800;font-size:16px">← رجوع للخطوة السابقة</div>
+              </sc-if>
+              <sc-if value="{{ canReset }}" hint-placeholder-val="{{ false }}">
+                <div onClick="{{ reset }}" style="border:2px solid #EAD9C6;color:#941249;background:#fff;border-radius:999px;min-height:48px;padding:0 20px;display:inline-flex;align-items:center;cursor:pointer;font-weight:800;font-size:16px">من البداية</div>
+              </sc-if>
+            </div>
+          </div>
+          <div class="qr" style="{{ qrGrid }}">
+            <sc-for list="{{ quick }}" as="q" hint-placeholder-count="5">
+              <div onClick="{{ q.pick }}" style="{{ q.style }}">
+                <span>{{ q.label }}</span>
+                <sc-if value="{{ q.hasSub }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-family:'Almarai',sans-serif;font-size:13.5px;font-weight:700;opacity:.85">{{ q.sub }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px;background:#fff;border:2px dashed #EAD9C6;border-radius:22px;padding:16px 18px">
+        <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:17px;color:#941249">الأساس الحسابي</div>
+        <div style="margin-top:6px;font-size:15px;font-weight:700;color:#4A323E;line-height:1.9">{{ assumptionsLine }}</div>
+      </div>
+    </div>
+    <div style="margin-top:32px;background:#fff;border-top:1.5px solid #F0DECC;padding:24px 18px 22px;text-align:center">
+      <div style="font-size:16px;color:#4A323E;line-height:1.9">المدينة المنورة — حي شرق المدينة — خلف قصر ذكرى<br>الدوام من الساعة 6:45 صباحاً إلى 9 مساءً</div>
+      <div style="margin-top:10px;font-size:14px;font-weight:700;color:#941249">مركز رواد المستقبل للأطفال</div>
+    </div>
+    <div style="height:10px;background:linear-gradient(90deg,#E8BD4B,#D60859 55%,#941249)"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:860,&quot;height&quot;:1050},&quot;monthWeeks&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:3,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;},&quot;termWeeks&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:16,&quot;min&quot;:8,&quot;max&quot;:24,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;},&quot;siblingOff&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:10,&quot;min&quot;:0,&quot;max&quot;:30,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      msgs: [{ who: 'g', text: 'مرحباً. سأحسب لك السعر العادل من أسعار الباقات المعلنة — ثلاثة أسئلة قصيرة.' }],
+      typing: false, stage: 'hours', hours: null, days: null, weeks: null, kids: 1, history: []
+    };
+    this.timers = [];
+    this.thread = React.createRef();
+  }
+  componentDidMount() { this.say('كم ساعة يبقى الطفل في المركز يومياً؟', 650); }
+  componentDidUpdate() { const el = this.thread.current; if (el) el.scrollTop = el.scrollHeight; }
+  componentWillUnmount() { this.timers.forEach(clearTimeout); }
+  wait(ms, fn) { this.timers.push(setTimeout(fn, ms)); }
+  say(text, delay, extra) {
+    this.setState({ typing: true });
+    this.wait(delay || 650, () => this.setState(s => ({
+      typing: false, msgs: s.msgs.concat([Object.assign({ who: 'g', text }, extra || {})])
+    })));
+  }
+  cfg() {
+    return { weekDays: 5, monthWeeks: this.props.monthWeeks ?? 4, termWeeks: this.props.termWeeks ?? 16, siblingOff: this.props.siblingOff ?? 10, hourly: 25 };
+  }
+  prices() {
+    return {
+      4: { day: 55, week: 250, month: 650, term: 2100 },
+      5: { day: 65, week: 300, month: 750, term: 2500 },
+      6: { day: 75, week: 350, month: 850, term: 2700 },
+      8: { day: 90, week: 425, month: 1050, term: 3300 },
+      10: { day: 125, week: 600, month: 1250, term: 4000 }
+    };
+  }
+  ar(n, f) {
+    if (n === 1) return f[0];
+    if (n === 2) return f[1];
+    if (n <= 10) return n + ' ' + f[2];
+    return n + ' ' + f[3];
+  }
+  hoursAr(n) { return this.ar(n, ['ساعة', 'ساعتان', 'ساعات', 'ساعةً']); }
+  daysAr(n) { return this.ar(n, ['يوم', 'يومان', 'أيام', 'يوماً']); }
+  weeksAr(n) { return this.ar(n, ['أسبوع', 'أسبوعان', 'أسابيع', 'أسبوعاً']); }
+  kidsAr(n) { return this.ar(n, ['طفل', 'طفلان', 'أطفال', 'طفلاً']); }
+  best(key, unitDays, h) {
+    const c = this.cfg(), P = this.prices();
+    let out = { cost: h * c.hourly * unitDays, tier: null };
+    [4, 5, 6, 8, 10].forEach(t => {
+      if (t < h) return;
+      if (P[t][key] < out.cost) out = { cost: P[t][key], tier: t };
+    });
+    return out;
+  }
+  plan(h, dpw, totalDays) {
+    const c = this.cfg();
+    const units = [
+      { key: 'day', days: 1, label: 'اشتراك باليوم' },
+      { key: 'week', days: dpw, label: 'اشتراك أسبوعي' },
+      { key: 'month', days: dpw * c.monthWeeks, label: 'اشتراك شهري' },
+      { key: 'term', days: dpw * c.termWeeks, label: 'اشتراك بالترم' }
+    ].map(u => Object.assign({}, u, this.best(u.key, u.days, h)));
+    const cost = [0], pick = [null];
+    for (let i = 1; i <= totalDays; i++) {
+      let bc = Infinity, bu = null;
+      units.forEach(u => {
+        const prev = cost[Math.max(0, i - u.days)];
+        if (prev + u.cost < bc) { bc = prev + u.cost; bu = u; }
+      });
+      cost[i] = bc; pick[i] = bu;
+    }
+    const counts = new Map();
+    let i = totalDays;
+    while (i > 0) { const u = pick[i]; counts.set(u.key, (counts.get(u.key) || 0) + 1); i = Math.max(0, i - u.days); }
+    const items = [];
+    units.forEach(u => {
+      const n = counts.get(u.key);
+      if (!n) return;
+      items.push({
+        title: (u.tier ? u.label + ' · ' + u.tier + ' ساعات' : 'حساب بالساعة') + (n > 1 ? ' × ' + n : ''),
+        detail: u.tier
+          ? u.cost + ' ريال للواحد · يغطي ' + this.daysAr(u.days) + ' دوام'
+          : this.hoursAr(h) + ' × ' + this.daysAr(u.days) + ' × ' + c.hourly + ' ريال',
+        sum: u.cost * n
+      });
+    });
+    return { total: cost[totalDays], items, units };
+  }
+  finish(st) {
+    const s = st || this.state, c = this.cfg();
+    const totalDays = s.days * s.weeks;
+    const r = this.plan(s.hours, s.days, totalDays);
+    const gross = r.total * s.kids;
+    const disc = s.kids >= 2 ? Math.round(gross * c.siblingOff / 100) : 0;
+    const net = gross - disc;
+    const totalHours = totalDays * s.hours;
+    const saving = totalHours * c.hourly * s.kids - net;
+    const tier = [4, 5, 6, 8, 10].find(t => t >= s.hours);
+    const note = (tier === s.hours ? '' : 'لا توجد باقة ' + s.hours + ' ساعات، فحُسبت على أقرب باقة أعلى: ' + tier + ' ساعات. ')
+      + 'كل مبلغ مأخوذ من أسعار الباقات المعلنة، والأسعار متطابقة في الفترتين.';
+    this.say('هذا هو السعر العادل:', 850, {
+      hasResult: true, total: net,
+      summary: this.hoursAr(s.hours) + ' يومياً · ' + this.daysAr(s.days) + ' أسبوعياً · ' + this.weeksAr(s.weeks) + ' · ' + this.kidsAr(s.kids),
+      perDay: 'يعادل ' + Math.round(net / (totalDays * s.kids)) + ' ريال في اليوم للطفل',
+      perHour: 'يعادل ' + (Math.round((net / (totalHours * s.kids)) * 10) / 10) + ' ريال للساعة',
+      hasDiscount: disc > 0, discountLabel: 'خصم الأخوة ' + c.siblingOff + '% — ' + disc + ' ريال',
+      hasSaving: saving > 0, savingLabel: 'توفير ' + saving + ' ريال عن الحساب بالساعة',
+      basket: r.items, note
+    });
+  }
+  qBtn(kind) {
+    const base = {
+      minHeight: '62px', borderRadius: '18px', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: '2px', cursor: 'pointer',
+      fontFamily: "'Baloo Bhaijaan 2','Almarai',sans-serif", fontWeight: 800, fontSize: '20px',
+      padding: '8px 14px', textAlign: 'center', transition: 'background .18s,border-color .18s'
+    };
+    if (kind === 'primary') return Object.assign(base, { background: '#D60859', color: '#fff', border: '2px solid #D60859', boxShadow: '0 6px 16px rgba(214,8,89,.22)' });
+    if (kind === 'gold') return Object.assign(base, { background: 'linear-gradient(165deg,#FFF7E8,#FFEBC7)', color: '#941249', border: '2px solid #E8BD4B' });
+    return Object.assign(base, { background: '#fff', color: '#941249', border: '2px solid #EAD9C6' });
+  }
+  answer(field, value, label, next, question) {
+    this.timers.forEach(clearTimeout); this.timers = [];
+    const s = this.state;
+    const snap = { stage: s.stage, hours: s.hours, days: s.days, weeks: s.weeks, kids: s.kids, msgsLen: s.msgs.length };
+    const nextState = { stage: next, history: s.history.concat([snap]) };
+    nextState[field] = value;
+    this.setState(st => ({
+      msgs: st.msgs.concat([{ who: 'u', text: label }]),
+      typing: false,
+      stage: next,
+      history: st.history.concat([snap]),
+      [field]: value
+    }));
+    if (next === 'done') {
+      const merged = Object.assign({}, s, nextState);
+      this.wait(30, () => this.finish(merged));
+    } else this.say(question, 700);
+  }
+  back() {
+    this.timers.forEach(clearTimeout); this.timers = [];
+    this.setState(s => {
+      if (!s.history.length) return {};
+      const h = s.history.slice();
+      const prev = h.pop();
+      return {
+        msgs: s.msgs.slice(0, prev.msgsLen), typing: false, history: h,
+        stage: prev.stage, hours: prev.hours, days: prev.days, weeks: prev.weeks, kids: prev.kids
+      };
+    });
+  }
+  reset() {
+    this.timers.forEach(clearTimeout); this.timers = [];
+    this.setState({
+      msgs: [{ who: 'g', text: 'نبدأ من جديد. كم ساعة يبقى الطفل في المركز يومياً؟' }],
+      typing: false, stage: 'hours', hours: null, days: null, weeks: null, kids: 1, history: []
+    });
+  }
+  renderVals() {
+    const s = this.state, c = this.cfg();
+    let quick = [], label = 'اختر الإجابة:', cols = 3, step = '';
+    if (s.stage === 'hours') {
+      step = 'الخطوة 1 من 4 — الساعات'; label = 'عدد الساعات في اليوم:';
+      quick = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(h => ({
+        label: String(h), sub: 'ساعات', hasSub: h > 2, style: this.qBtn(),
+        pick: () => this.answer('hours', h, this.hoursAr(h) + ' يومياً', 'days', 'وكم يوماً في الأسبوع؟')
+      }));
+    } else if (s.stage === 'days') {
+      step = 'الخطوة 2 من 4 — الأيام'; label = 'عدد أيام الدوام في الأسبوع:';
+      quick = [1, 2, 3, 4, 5].map(d => ({
+        label: String(d), sub: 'أيام', hasSub: d > 2, style: this.qBtn(),
+        pick: () => this.answer('days', d, this.daysAr(d) + ' أسبوعياً', 'weeks', 'وكم مدة الاشتراك؟')
+      }));
+    } else if (s.stage === 'weeks') {
+      step = 'الخطوة 3 من 4 — المدة'; label = 'مدة الاشتراك:'; cols = 2;
+      quick = [
+        { label: 'أسبوع', sub: 'أسبوع واحد', hasSub: true, style: this.qBtn(), pick: () => this.answer('weeks', 1, 'أسبوع', 'kids', 'وكم عدد الأطفال؟') },
+        { label: 'شهر', sub: c.monthWeeks + ' أسابيع', hasSub: true, style: this.qBtn(), pick: () => this.answer('weeks', c.monthWeeks, 'شهر', 'kids', 'وكم عدد الأطفال؟') },
+        { label: 'شهران', sub: (c.monthWeeks * 2) + ' أسبوعاً', hasSub: true, style: this.qBtn(), pick: () => this.answer('weeks', c.monthWeeks * 2, 'شهران', 'kids', 'وكم عدد الأطفال؟') },
+        { label: 'ترم كامل', sub: c.termWeeks + ' أسبوعاً', hasSub: true, style: this.qBtn('gold'), pick: () => this.answer('weeks', c.termWeeks, 'ترم كامل', 'kids', 'وكم عدد الأطفال؟') }
+      ];
+    } else if (s.stage === 'kids') {
+      step = 'الخطوة 4 من 4 — الأطفال'; label = 'عدد الأطفال:'; cols = 4;
+      quick = [1, 2, 3, 4].map(k => ({
+        label: String(k), sub: k >= 2 ? 'خصم ' + c.siblingOff + '%' : 'طفل', hasSub: true,
+        style: this.qBtn(k >= 2 ? 'gold' : 'default'),
+        pick: () => this.answer('kids', k, this.kidsAr(k), 'done')
+      }));
+    } else {
+      step = 'اكتمل الحساب'; label = 'حساب آخر؟'; cols = 2;
+      quick = [
+        { label: 'احسب من جديد', hasSub: false, style: this.qBtn('primary'), pick: () => this.reset() },
+        { label: 'تعديل آخر إجابة', hasSub: false, style: this.qBtn(), pick: () => this.back() }
+      ];
+    }
+    return {
+      threadRef: this.thread,
+      stepLabel: step,
+      canBack: s.history.length > 0,
+      canReset: s.history.length > 0,
+      back: () => this.back(),
+      reset: () => this.reset(),
+      msgs: s.msgs.map(m => {
+        const g = m.who === 'g';
+        return Object.assign({}, m, {
+          isGuide: g, hasResult: !!m.hasResult,
+          hasDiscount: !!m.hasDiscount, hasSaving: !!m.hasSaving,
+          rowStyle: { display: 'flex', gap: '10px', alignItems: 'flex-end', justifyContent: g ? 'flex-start' : 'flex-end', animation: 'rwIn .28s ease-out both' },
+          bubbleStyle: g
+            ? { background: '#fff', border: '2px solid #F0DECC', borderRadius: '22px', borderBottomRightRadius: '8px', padding: '16px 20px', maxWidth: '88%', boxShadow: '0 6px 16px rgba(148,18,73,.06)' }
+            : { background: '#D60859', borderRadius: '22px', borderBottomLeftRadius: '8px', padding: '14px 20px', maxWidth: '84%', boxShadow: '0 6px 16px rgba(214,8,89,.22)' },
+          textStyle: {
+            fontFamily: g ? "'Almarai',sans-serif" : "'Baloo Bhaijaan 2','Almarai',sans-serif",
+            fontWeight: g ? 700 : 800,
+            fontSize: g ? 'clamp(17px,3.6vw,19px)' : 'clamp(18px,3.8vw,21px)',
+            lineHeight: 1.6, color: g ? '#2A1B22' : '#fff'
+          }
+        });
+      }),
+      typing: s.typing, replyLabel: label, quick,
+      qrGrid: { display: 'grid', gridTemplateColumns: 'repeat(' + cols + ',1fr)', gap: '10px' },
+      assumptionsLine: 'الأسبوع = أسبوع تقويمي (حتى ' + c.weekDays + ' أيام دوام) · الشهر = ' + c.monthWeeks + ' أسابيع · الترم = ' + c.termWeeks + ' أسبوعاً · الباقة بسعرها كاملاً حتى لو كان الحضور أقل · لا ساعات إضافية بالتجزئة، يُرقّى لأقرب باقة أعلى · خصم الأخوة ' + c.siblingOff + '% من طفلين · سعر الساعة المفردة ' + c.hourly + ' ريال'
+    };
+  }
+}
+</script>
+</body>
+</html>

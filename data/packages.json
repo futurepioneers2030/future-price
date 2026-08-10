@@ -1,0 +1,308 @@
+{
+  "brand": "مركز رواد المستقبل للأطفال",
+  "store": "https://futurepioneers.net",
+  "logo": "https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png",
+  "hourlyRate": 25,
+  "currency": "ريال",
+  "durations": {
+    "day": "اليوم",
+    "week": "الأسبوع",
+    "month": "الشهر",
+    "term": "الترم"
+  },
+  "periods": {
+    "morning": {
+      "label": "الفترة الصباحية",
+      "categoryUrl": "https://futurepioneers.net/الفترة-الصباحية/c1643999108",
+      "hour": {
+        "label": "ساعة واحدة",
+        "price": 25,
+        "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ساعة/p1492487661"
+      },
+      "packages": [
+        {
+          "hours": 4,
+          "label": "4 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 55,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-باليوم-4-ساعات/p1302063314"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 250,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-اسبوعي-4-ساعات/p2115944490"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 650,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-شهري-4-ساعات/p2080731704"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2100,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ترم-4-ساعات/p374527772"
+            }
+          }
+        },
+        {
+          "hours": 5,
+          "label": "5 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 65,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-باليوم-5-ساعات/p223865717"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 300,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-اسبوعي-5-ساعات/p1234702622"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 750,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-شهري-5-ساعات/p911338442"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2500,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ترم-5-ساعات/p257233496"
+            }
+          }
+        },
+        {
+          "hours": 6,
+          "label": "6 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 75,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-باليوم-6-ساعات/p196600398"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 350,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-اسبوعي-6-ساعات/p210545771"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 850,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-شهري-6-ساعات/p803227861"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2700,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ترم-6-ساعات/p1455594916"
+            }
+          }
+        },
+        {
+          "hours": 8,
+          "label": "8 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 90,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-باليوم-8-ساعات/p446229078"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 425,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-اسبوعي-8-ساعات/p1131882304"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 1050,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-شهري-8-ساعات/p628135376"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 3300,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ترم-8-ساعات/p507386272"
+            }
+          }
+        },
+        {
+          "hours": 10,
+          "label": "10 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 125,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-باليوم-10-ساعات/p411081636"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 600,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-اسبوعي-10-ساعات/p1098901846"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 1250,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-شهري-10-ساعات/p1234319397"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 4000,
+              "url": "https://futurepioneers.net/الفترة-الصباحية-اشتراك-ترم-10-ساعات/p1638630828"
+            }
+          }
+        }
+      ]
+    },
+    "evening": {
+      "label": "الفترة المسائية",
+      "categoryUrl": "https://futurepioneers.net/الفترة-المسائية/c193898983",
+      "hour": {
+        "label": "ساعة واحدة",
+        "price": 25,
+        "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالساعة/p1353339257"
+      },
+      "packages": [
+        {
+          "hours": 4,
+          "label": "4 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 55,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-باليوم-4-ساعات/p1277255754"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 250,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-اسبوعي-4-ساعات/p1899522467"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 650,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-شهري-4-ساعات/p1176008124"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2100,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالترم-4-ساعات/p1140860802"
+            }
+          }
+        },
+        {
+          "hours": 5,
+          "label": "5 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 65,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-باليوم-5-ساعات/p984425561"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 300,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-اسبوعي-5-ساعات/p1548360311"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 750,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-شهري-5-ساعات/p2042174346"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2500,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالترم-5-ساعات/p1826145680"
+            }
+          }
+        },
+        {
+          "hours": 6,
+          "label": "6 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 75,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-باليوم-6-ساعات/p35303333"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 350,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-اسبوعي-6-ساعات/p2080135281"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 850,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-شهري-6-ساعات/p361248237"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 2700,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالترم-6-ساعات/p955539406"
+            }
+          }
+        },
+        {
+          "hours": 8,
+          "label": "8 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 90,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-باليوم-8-ساعات/p2074676384"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 425,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-اسبوعي-8-ساعات/p665290355"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 1050,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-شهري-8-ساعات/p284846309"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 3300,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالترم-8-ساعات/p1272793046"
+            }
+          }
+        },
+        {
+          "hours": 10,
+          "label": "10 ساعات",
+          "prices": {
+            "day": {
+              "label": "اليوم",
+              "price": 125,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-باليوم-10-ساعات/p405819811"
+            },
+            "week": {
+              "label": "الأسبوع",
+              "price": 600,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-اسبوعي-10-ساعات/p147714639"
+            },
+            "month": {
+              "label": "الشهر",
+              "price": 1250,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-شهري-10-ساعات/p1657239526"
+            },
+            "term": {
+              "label": "الترم",
+              "price": 4000,
+              "url": "https://futurepioneers.net/الفترة-المسائية-اشتراك-بالترم-10-ساعات/p323666898"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "contact": {
+    "phone": "0591044434",
+    "whatsapp": "https://wa.me/966591044434",
+    "mapsUrl": "https://www.google.com/maps/place/%D9%85%D8%B1%D9%83%D8%B2+%D8%B1%D9%88%D8%A7%D8%AF+%D8%A7%D9%84%D9%85%D8%B3%D8%AA%D9%82%D8%A8%D9%84+%D9%84%D9%84%D8%A3%D8%B7%D9%81%D8%A7%D9%84+%5B%D8%AD%D8%B6%D8%A7%D9%86%D8%A9+%D9%88%D8%B1%D9%88%D8%B6%D8%A9+%D9%84%D9%84%D8%A3%D8%B7%D9%81%D8%A7%D9%84%5D%E2%80%AD/data=!4m2!3m1!1s0x0:0xbcb4cf8fa4fc6a11?sa=X&ved=1t:2428&ictx=111",
+    "address": "المدينة المنورة — حي شرق المدينة — خلف قصر ذكرى",
+    "hours": "الدوام من الساعة 6:45 صباحاً إلى 9 مساءً"
+  },
+  "notes": [
+    "التقسيط متاح عبر تابي وتمارا",
+    "اشتراك مرن بدون تجديد تلقائي"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "future-price",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "منصة تسعير اشتراكات مركز رواد المستقبل للأطفال — موقع ثابت مولَّد من data/packages.json",
+  "scripts": {
+    "build": "node src/build.mjs",
+    "verify": "node src/verify.mjs",
+    "check": "node src/build.mjs && node src/verify.mjs",
+    "serve": "node src/serve.mjs",
+    "deploy": "npm run check && wrangler pages deploy site --project-name=future-price --branch=main --commit-dirty=true"
+  }
+}

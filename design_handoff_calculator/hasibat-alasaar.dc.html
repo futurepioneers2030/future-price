@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&amp;family=Almarai:wght@400;700;800&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#fff}
+a{color:#941249}a:hover{color:#D60859}
+@media (max-width:700px){.cmp{grid-template-columns:1fr !important}}
+</style>
+</helmet>
+<div dir="rtl" style="direction:rtl;font-family:'Almarai','Baloo Bhaijaan 2',sans-serif;color:#2A1B22;background:#fff">
+  <div style="background:#FBF2E7;border-radius:22px;overflow:hidden">
+    <div style="height:10px;background:linear-gradient(90deg,#941249,#D60859 45%,#E8BD4B)"></div>
+    <div style="max-width:820px;margin:0 auto;padding:26px 20px 0;text-align:center">
+      <img src="https://cdn.salla.sa/zvRpzp/stores/logos/BGGdLHdolsCv1vs9hGSy3jUFT1xukKBeQX3qjPPn.png" alt="مركز رواد المستقبل للأطفال" style="height:60px;width:auto;max-width:56vw;object-fit:contain">
+      <h2 style="margin:8px 0 0;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:clamp(24px,5vw,34px);color:#D60859;line-height:1.25">حاسبة أسعار الاشتراك</h2>
+      <div style="margin-top:4px;font-size:clamp(16px,3vw,19px);font-weight:700;color:#4A323E">حدد أيام وساعات دوام طفلك، ونحسب لك السعر العادل من باقاتنا</div>
+    </div>
+    <div data-screen-label="المدخلات" style="max-width:760px;margin:22px auto 0;padding:0 20px">
+      <div style="background:#fff;border:2px solid #F0DECC;border-radius:26px;padding:22px 20px;display:flex;flex-direction:column;gap:20px;box-shadow:0 12px 30px rgba(148,18,73,.07)">
+        <sc-for list="{{ steppers }}" as="st" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+              <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:21px;color:#941249">{{ st.label }}</div>
+              <div style="font-size:15px;font-weight:700;color:#4A323E">{{ st.hint }}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px">
+              <div onClick="{{ st.dec }}" style="{{ st.decStyle }}">−</div>
+              <div style="flex:1;min-width:0;background:#FBF2E7;border:2px solid #EAD9C6;border-radius:18px;min-height:68px;display:flex;align-items:center;justify-content:center;gap:8px">
+                <span style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:34px;color:#2A1B22;line-height:1">{{ st.value }}</span>
+                <span style="font-size:17px;font-weight:700;color:#4A323E">{{ st.unit }}</span>
+              </div>
+              <div onClick="{{ st.inc }}" style="{{ st.incStyle }}">+</div>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:21px;color:#941249">الفترة</div>
+          <div style="display:flex;gap:8px;background:#FBF2E7;border:2px solid #EAD9C6;border-radius:999px;padding:6px">
+            <div onClick="{{ pickMorning }}" style="{{ mStyle }}">الفترة الصباحية</div>
+            <div onClick="{{ pickEvening }}" style="{{ eStyle }}">الفترة المسائية</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div data-screen-label="النتيجة" style="max-width:760px;margin:16px auto 0;padding:0 20px">
+      <div style="background:linear-gradient(120deg,#FFF7E8,#FFE9C4);border:3px solid #E8BD4B;border-radius:26px;padding:26px 22px;text-align:center">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:#D60859;color:#fff;border-radius:999px;padding:8px 20px;font-weight:800;font-size:16px">السعر العادل لاشتراكك</div>
+        <div style="margin-top:14px;display:flex;align-items:baseline;justify-content:center;gap:8px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:clamp(48px,11vw,68px);color:#2A1B22;line-height:1">{{ total }} <span style="font-family:'Almarai',sans-serif;font-size:21px;font-weight:700;color:#4A323E">ريال</span></div>
+        <div style="margin-top:8px;font-size:18px;font-weight:700;color:#4A323E">{{ summaryLine }}</div>
+        <sc-if value="{{ hasKidsLine }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:6px;font-size:16px;font-weight:800;color:#941249">{{ kidsLine }}</div>
+        </sc-if>
+        <sc-if value="{{ hasDiscount }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;background:#fff;border:2px solid #E8BD4B;border-radius:999px;padding:9px 18px;font-size:16px;font-weight:800;color:#941249">{{ discountLabel }} — {{ discount }} ريال</div>
+        </sc-if>
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;justify-content:center;gap:9px">
+          <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:9px 16px;font-size:15px;font-weight:700;color:#941249">{{ perDayLabel }}</div>
+          <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:9px 16px;font-size:15px;font-weight:700;color:#941249">{{ perHourLabel }}</div>
+          <sc-if value="{{ hasSaving }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#D60859;border-radius:999px;padding:9px 16px;font-size:15px;font-weight:800;color:#fff">{{ savingLabel }}</div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:#fff;border:2px solid #F0DECC;border-radius:26px;padding:22px 20px">
+        <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:21px;color:#941249">كيف حسبنا السعر</div>
+        <div style="margin-top:4px;font-size:16px;font-weight:700;color:#4A323E">{{ basketNote }}</div>
+        <div style="margin-top:6px;font-size:15px;font-weight:700;color:#941249">{{ tierNote }}</div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+          <sc-for list="{{ basket }}" as="b" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:10px;background:#FBF2E7;border:2px solid #EAD9C6;border-radius:20px;padding:14px 18px">
+              <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                  <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:20px;color:#2A1B22">{{ b.title }}</div>
+                  <div style="font-size:15px;font-weight:700;color:#4A323E">{{ b.detail }}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="display:flex;align-items:baseline;gap:5px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:26px;color:#D60859">{{ b.sum }} <span style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:700;color:#4A323E">ريال</span></div>
+                  <a href="{{ b.url }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:0 22px;background:#D60859;color:#fff;border-radius:999px;font-weight:800;font-size:17px;text-decoration:none;transition:background .2s" style-hover="background:#941249">اشترك</a>
+                </div>
+              </div>
+              <sc-if value="{{ b.hasExtra }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:2px solid #E8BD4B;border-radius:16px;padding:12px 14px">
+                  <div style="font-size:15px;font-weight:700;color:#4A323E">{{ b.extraNote }}</div>
+                  <a href="{{ b.extraUrl }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;background:#fff;color:#941249;border:2px solid #941249;border-radius:999px;font-weight:800;font-size:16px;text-decoration:none">أضف الساعة الإضافية</a>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:2px solid #F0DECC;padding-top:14px">
+          <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:20px;color:#941249">الإجمالي</div>
+          <div style="display:flex;align-items:baseline;gap:6px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:30px;color:#2A1B22">{{ total }} <span style="font-family:'Almarai',sans-serif;font-size:16px;font-weight:700;color:#4A323E">ريال</span></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:#fff;border:2px solid #F0DECC;border-radius:26px;padding:22px 20px">
+        <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:21px;color:#941249">مقارنة الطرق الأخرى لنفس الدوام</div>
+        <div class="cmp" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
+          <sc-for list="{{ compare }}" as="c" hint-placeholder-count="4">
+            <div style="{{ c.style }}">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:19px;color:#2A1B22">{{ c.label }}</div>
+                <div style="font-size:14px;font-weight:700;color:#4A323E">{{ c.detail }}</div>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:5px;font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:24px;color:{{ c.color }}">{{ c.sum }} <span style="font-family:'Almarai',sans-serif;font-size:14px;font-weight:700;color:#4A323E">ريال</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:#fff;border:2px dashed #EAD9C6;border-radius:22px;padding:18px 20px">
+        <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:18px;color:#941249">الأساس الحسابي</div>
+        <div style="margin-top:8px;font-size:15.5px;font-weight:700;color:#4A323E;line-height:2">{{ assumptionsLine }}</div>
+        <div style="margin-top:6px;font-size:15px;color:#4A323E;line-height:1.9">كل مبلغ في الحاسبة مأخوذ من أسعار باقات المركز المعلنة — لا أسعار مستحدثة. الساعة الإضافية بـ25 ريال، والحاسبة تختار التركيبة الأقل تكلفة لك.</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:16px">
+        <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:10px 18px;font-size:15px;font-weight:700;color:#941249">التقسيط متاح عبر تابي وتمارا</div>
+        <div style="background:#fff;border:1.5px solid #EAD9C6;border-radius:999px;padding:10px 18px;font-size:15px;font-weight:700;color:#941249">اشتراك مرن بدون تجديد تلقائي</div>
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:16px;font-weight:700"><a href="{{ catUrl }}" target="_blank" rel="noopener" style="color:#941249;text-decoration:underline">{{ catLabel }}</a></div>
+    </div>
+    <div style="margin-top:36px;background:#fff;border-top:1.5px solid #F0DECC;padding:28px 18px 24px;text-align:center">
+      <div style="font-family:'Baloo Bhaijaan 2','Almarai',sans-serif;font-weight:800;font-size:22px;color:#941249">تواصل معنا</div>
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:14px">
+        <a href="https://wa.me/966591044434" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;min-height:56px;padding:0 26px;border-radius:999px;font-weight:800;font-size:18px;text-decoration:none;background:#D60859;color:#fff;box-shadow:0 6px 16px rgba(214,8,89,.25)">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2Zm5 13.6c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1-1.4-1-2.6s.6-1.8.9-2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.4l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.1.2-.3.4-.1.7.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.7-.1l1-1.1c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.5.3.1.2.1.6-.1 1.2Z"></path></svg>
+          واتساب
+        </a>
+        <a href="tel:0591044434" style="display:inline-flex;align-items:center;gap:8px;min-height:56px;padding:0 26px;border-radius:999px;font-weight:800;font-size:18px;text-decoration:none;border:2px solid #941249;color:#941249">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#941249" stroke-width="2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"></path></svg>
+          اتصال 0591044434
+        </a>
+        <a href="https://www.google.com/maps/place/%D9%85%D8%B1%D9%83%D8%B2+%D8%B1%D9%88%D8%A7%D8%AF+%D8%A7%D9%84%D9%85%D8%B3%D8%AA%D9%82%D8%A8%D9%84+%D9%84%D9%84%D8%A3%D8%B7%D9%81%D8%A7%D9%84+%5B%D8%AD%D8%B6%D8%A7%D9%86%D8%A9+%D9%88%D8%B1%D9%88%D8%B6%D8%A9+%D9%84%D9%84%D8%A3%D8%B7%D9%81%D8%A7%D9%84%5D%E2%80%AD/data=!4m2!3m1!1s0x0:0xbcb4cf8fa4fc6a11?sa=X&amp;ved=1t:2428&amp;ictx=111" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;min-height:56px;padding:0 26px;border-radius:999px;font-weight:800;font-size:18px;text-decoration:none;border:2px solid #E8BD4B;color:#941249">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#941249" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          موقعنا على الخريطة
+        </a>
+      </div>
+      <div style="margin-top:16px;font-size:16px;color:#4A323E;line-height:1.9">المدينة المنورة — حي شرق المدينة — خلف قصر ذكرى<br>الدوام من الساعة 6:45 صباحاً إلى 9 مساءً</div>
+      <div style="margin-top:10px;font-size:14px;font-weight:700;color:#941249">مركز رواد المستقبل للأطفال</div>
+    </div>
+    <div style="height:10px;background:linear-gradient(90deg,#E8BD4B,#D60859 55%,#941249)"></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:1200},&quot;weekDays&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:5,&quot;min&quot;:3,&quot;max&quot;:7,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;},&quot;monthWeeks&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:3,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;},&quot;termWeeks&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:16,&quot;min&quot;:8,&quot;max&quot;:24,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;},&quot;siblingOff&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:10,&quot;min&quot;:0,&quot;max&quot;:30,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;الأساس الحسابي&quot;}}">
+class Component extends DCLogic {
+  state = { hours: 6, days: 5, weeks: 4, kids: 1, period: 'm' };
+  data() {
+    const M = 'https://futurepioneers.net/الفترة-الصباحية-اشتراك-';
+    const E = 'https://futurepioneers.net/الفترة-المسائية-اشتراك-';
+    const mk = (pre, termWord, rows) => {
+      const o = {};
+      rows.forEach(r => {
+        o[r[0]] = {
+          day:   { price: r[1], url: pre + 'باليوم-' + r[0] + '-ساعات/' + r[5] },
+          week:  { price: r[2], url: pre + 'اسبوعي-' + r[0] + '-ساعات/' + r[6] },
+          month: { price: r[3], url: pre + 'شهري-' + r[0] + '-ساعات/' + r[7] },
+          term:  { price: r[4], url: pre + termWord + '-' + r[0] + '-ساعات/' + r[8] }
+        };
+      });
+      return o;
+    };
+    return {
+      m: {
+        label: 'الفترة الصباحية',
+        cat: 'https://futurepioneers.net/الفترة-الصباحية/c1643999108',
+        catLabel: 'تصفح كل باقات الفترة الصباحية في المتجر ↗',
+        hour: { price: 25, url: M + 'ساعة/p1492487661' },
+        t: mk(M, 'ترم', [
+          [4, 55, 250, 650, 2100, 'p1302063314', 'p2115944490', 'p2080731704', 'p374527772'],
+          [5, 65, 300, 750, 2500, 'p223865717', 'p1234702622', 'p911338442', 'p257233496'],
+          [6, 75, 350, 850, 2700, 'p196600398', 'p210545771', 'p803227861', 'p1455594916'],
+          [8, 90, 425, 1050, 3300, 'p446229078', 'p1131882304', 'p628135376', 'p507386272'],
+          [10, 125, 600, 1250, 4000, 'p411081636', 'p1098901846', 'p1234319397', 'p1638630828']
+        ])
+      },
+      e: {
+        label: 'الفترة المسائية',
+        cat: 'https://futurepioneers.net/الفترة-المسائية/c193898983',
+        catLabel: 'تصفح كل باقات الفترة المسائية في المتجر ↗',
+        hour: { price: 25, url: E + 'بالساعة/p1353339257' },
+        t: mk(E, 'بالترم', [
+          [4, 55, 250, 650, 2100, 'p1277255754', 'p1899522467', 'p1176008124', 'p1140860802'],
+          [5, 65, 300, 750, 2500, 'p984425561', 'p1548360311', 'p2042174346', 'p1826145680'],
+          [6, 75, 350, 850, 2700, 'p35303333', 'p2080135281', 'p361248237', 'p955539406'],
+          [8, 90, 425, 1050, 3300, 'p2074676384', 'p665290355', 'p284846309', 'p1272793046'],
+          [10, 125, 600, 1250, 4000, 'p405819811', 'p147714639', 'p1657239526', 'p323666898']
+        ])
+      }
+    };
+  }
+  cfg() {
+    return {
+      weekDays: this.props.weekDays ?? 5,
+      monthWeeks: this.props.monthWeeks ?? 4,
+      termWeeks: this.props.termWeeks ?? 16,
+      siblingOff: this.props.siblingOff ?? 10,
+      hourly: 25
+    };
+  }
+  best(p, key, unitDays, h) {
+    const c = this.cfg();
+    let out = { cost: h * c.hourly * unitDays, tier: null };
+    [4, 5, 6, 8, 10].forEach(t => {
+      if (t < h) return;
+      const cost = p.t[t][key].price;
+      if (cost < out.cost) out = { cost, tier: t };
+    });
+    return out;
+  }
+  plan(p, h, dpw, totalDays) {
+    const c = this.cfg();
+    const units = [
+      { key: 'day', days: 1, label: 'اشتراك باليوم' },
+      { key: 'week', days: dpw, label: 'اشتراك أسبوعي' },
+      { key: 'month', days: dpw * c.monthWeeks, label: 'اشتراك شهري' },
+      { key: 'term', days: dpw * c.termWeeks, label: 'اشتراك بالترم' }
+    ].map(u => Object.assign({}, u, this.best(p, u.key, u.days, h)));
+    const cost = [0], pick = [null];
+    for (let i = 1; i <= totalDays; i++) {
+      let bestC = Infinity, bestU = null;
+      units.forEach(u => {
+        const prev = cost[Math.max(0, i - u.days)];
+        if (prev + u.cost < bestC) { bestC = prev + u.cost; bestU = u; }
+      });
+      cost[i] = bestC; pick[i] = bestU;
+    }
+    const counts = new Map();
+    let i = totalDays;
+    while (i > 0) {
+      const u = pick[i];
+      counts.set(u.key, (counts.get(u.key) || 0) + 1);
+      i = Math.max(0, i - u.days);
+    }
+    const items = [];
+    units.forEach(u => {
+      const n = counts.get(u.key);
+      if (!n) return;
+      const unitPrice = u.tier ? p.t[u.tier][u.key].price : 0;
+      const detail = u.tier
+        ? unitPrice + ' ريال للواحد · يغطي ' + this.daysAr(u.days) + ' دوام'
+        : this.hoursAr(h) + ' × ' + this.daysAr(u.days) + ' × ' + c.hourly + ' ريال';
+      items.push({
+        title: (u.tier ? u.label + ' · ' + u.tier + ' ساعات' : 'اشتراك بالساعة') + (n > 1 ? ' × ' + n : ''),
+        detail, sum: u.cost * n,
+        url: u.tier ? p.t[u.tier][u.key].url : p.hour.url,
+        hasExtra: false, extraUrl: p.hour.url, extraNote: ''
+      });
+    });
+    return { total: cost[totalDays], items, units };
+  }
+  step(dir) {
+    return {
+      width: '68px', height: '68px', flexShrink: 0, borderRadius: '20px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: "'Baloo Bhaijaan 2','Almarai',sans-serif", fontWeight: 800, fontSize: '34px',
+      cursor: 'pointer', userSelect: 'none', transition: 'background .15s',
+      background: dir === 'inc' ? '#D60859' : '#fff',
+      color: dir === 'inc' ? '#fff' : '#941249',
+      border: dir === 'inc' ? '2px solid #D60859' : '2px solid #EAD9C6',
+      boxShadow: dir === 'inc' ? '0 6px 16px rgba(214,8,89,.22)' : 'none'
+    };
+  }
+  seg(active) {
+    return Object.assign({
+      flex: '1 1 0', minWidth: 0, minHeight: '56px', borderRadius: '999px', display: 'flex',
+      alignItems: 'center', justifyContent: 'center', fontWeight: 800,
+      fontSize: 'clamp(15px,4.2vw,19px)', cursor: 'pointer', transition: 'background .2s,color .2s'
+    }, active
+      ? { background: '#D60859', color: '#fff', boxShadow: '0 4px 14px rgba(214,8,89,.25)' }
+      : { color: '#941249' });
+  }
+  clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  ar(n, forms) {
+    if (n === 1) return forms[0];
+    if (n === 2) return forms[1];
+    if (n <= 10) return n + ' ' + forms[2];
+    return n + ' ' + forms[3];
+  }
+  hoursAr(n) { return this.ar(n, ['ساعة', 'ساعتان', 'ساعات', 'ساعةً']); }
+  daysAr(n) { return this.ar(n, ['يوم', 'يومان', 'أيام', 'يوماً']); }
+  weeksAr(n) { return this.ar(n, ['أسبوع', 'أسبوعان', 'أسابيع', 'أسبوعاً']); }
+  monthsAr(n) { return this.ar(n, ['شهر', 'شهران', 'أشهر', 'شهراً']); }
+  termsAr(n) { return this.ar(n, ['ترم', 'ترمان', 'ترمات', 'ترماً']); }
+  bump(field, delta, lo, hi) {
+    this.setState(s => ({ [field]: this.clamp(s[field] + delta, lo, hi) }));
+  }
+  renderVals() {
+    const s = this.state, c = this.cfg(), D = this.data(), p = D[s.period];
+    const totalDays = s.days * s.weeks;
+    const r = this.plan(p, s.hours, s.days, totalDays);
+    const totalHours = totalDays * s.hours;
+    const hourlyAll = totalHours * c.hourly;
+    const kids = s.kids || 1;
+    const gross = r.total * kids;
+    const disc = kids >= 2 ? Math.round(gross * c.siblingOff / 100) : 0;
+    const net = gross - disc;
+    const tierUsed = [4, 5, 6, 8, 10].find(t => t >= s.hours);
+    const dayUnit = r.units.find(u => u.key === 'day');
+    const weekUnit = r.units.find(u => u.key === 'week');
+    const monthUnit = r.units.find(u => u.key === 'month');
+    const termUnit = r.units.find(u => u.key === 'term');
+    const nW = Math.ceil(totalDays / weekUnit.days);
+    const nM = Math.ceil(totalDays / monthUnit.days);
+    const nT = Math.ceil(totalDays / termUnit.days);
+    const rows = [
+      { label: 'الأقل تكلفة (المعروض أعلاه)', detail: 'تركيبة باقات المركز', sum: r.total, win: true },
+      { label: 'كل الأيام بالساعة', detail: this.hoursAr(totalHours) + ' × ' + c.hourly + ' ريال', sum: hourlyAll }
+    ];
+    if (dayUnit.tier) rows.push({ label: 'كل الأيام باشتراك يومي', detail: this.daysAr(totalDays) + ' × ' + dayUnit.cost + ' ريال', sum: dayUnit.cost * totalDays });
+    if (weekUnit.tier) rows.push({ label: 'اشتراك أسبوعي', detail: this.weeksAr(nW) + ' × ' + weekUnit.cost + ' ريال', sum: weekUnit.cost * nW });
+    if (monthUnit.tier) rows.push({ label: 'اشتراك شهري', detail: this.monthsAr(nM) + ' × ' + monthUnit.cost + ' ريال', sum: monthUnit.cost * nM });
+    if (termUnit.tier) rows.push({ label: 'اشتراك بالترم', detail: this.termsAr(nT) + ' × ' + termUnit.cost + ' ريال', sum: termUnit.cost * nT });
+    const saving = hourlyAll - r.total;
+    const tiersUsed = r.items.map(i => i.title).join(' + ');
+    return {
+      steppers: [
+        {
+          label: 'ساعات الدوام في اليوم', hint: 'من ساعة إلى 10 ساعات', value: s.hours,
+          unit: s.hours === 1 ? 'ساعة' : (s.hours === 2 ? 'ساعتان' : 'ساعات'),
+          dec: () => this.bump('hours', -1, 1, 10), inc: () => this.bump('hours', 1, 1, 10),
+          decStyle: this.step('dec'), incStyle: this.step('inc')
+        },
+        {
+          label: 'أيام الدوام في الأسبوع', hint: 'من يوم إلى ' + c.weekDays + ' أيام', value: s.days,
+          unit: s.days === 1 ? 'يوم' : (s.days === 2 ? 'يومان' : 'أيام'),
+          dec: () => this.bump('days', -1, 1, c.weekDays), inc: () => this.bump('days', 1, 1, c.weekDays),
+          decStyle: this.step('dec'), incStyle: this.step('inc')
+        },
+        {
+          label: 'عدد أسابيع الاشتراك',
+          hint: 'الشهر = ' + c.monthWeeks + ' أسابيع · الترم = ' + c.termWeeks + ' أسبوعاً',
+          value: s.weeks,
+          unit: s.weeks === 1 ? 'أسبوع' : (s.weeks === 2 ? 'أسبوعان' : 'أسابيع'),
+          dec: () => this.bump('weeks', -1, 1, 32), inc: () => this.bump('weeks', 1, 1, 32),
+          decStyle: this.step('dec'), incStyle: this.step('inc')
+        },
+        {
+          label: 'عدد الأطفال', hint: 'خصم الأخوة ' + c.siblingOff + '% من طفلين', value: kids,
+          unit: kids === 1 ? 'طفل' : (kids === 2 ? 'طفلان' : 'أطفال'),
+          dec: () => this.bump('kids', -1, 1, 4), inc: () => this.bump('kids', 1, 1, 4),
+          decStyle: this.step('dec'), incStyle: this.step('inc')
+        }
+      ],
+      pickMorning: () => this.setState({ period: 'm' }),
+      pickEvening: () => this.setState({ period: 'e' }),
+      mStyle: this.seg(s.period === 'm'), eStyle: this.seg(s.period === 'e'),
+      total: net,
+      subtotal: gross, discount: disc, hasDiscount: disc > 0,
+      discountLabel: 'خصم الأخوة ' + c.siblingOff + '% (' + this.ar(kids, ['طفل', 'طفلان', 'أطفال', 'طفلاً']) + ')',
+      kidsLine: kids > 1 ? 'السعر لكل طفل ' + r.total + ' ريال × ' + this.ar(kids, ['طفل', 'طفلان', 'أطفال', 'طفلاً']) : '',
+      hasKidsLine: kids > 1,
+      summaryLine: p.label + ' · ' + this.hoursAr(s.hours) + ' يومياً · ' + this.daysAr(s.days) + ' أسبوعياً · ' + this.weeksAr(s.weeks) + ' (' + this.daysAr(totalDays) + ' دوام)',
+      perDayLabel: 'يعادل ' + Math.round(net / (totalDays * kids)) + ' ريال في اليوم للطفل',
+      perHourLabel: 'يعادل ' + (Math.round((net / (totalHours * kids)) * 10) / 10) + ' ريال للساعة',
+      hasSaving: saving > 0,
+      savingLabel: 'توفير ' + saving + ' ريال مقابل الحساب بالساعة',
+      tierNote: tierUsed === s.hours
+        ? 'باقة ' + s.hours + ' ساعات متاحة مباشرة'
+        : 'لا توجد باقة ' + s.hours + ' ساعات — الحساب على أقرب باقة أعلى: ' + tierUsed + ' ساعات',
+      basket: r.items,
+      basketNote: 'اخترنا لك: ' + tiersUsed,
+      compare: rows.map(x => ({
+        label: x.label, detail: x.detail, sum: x.sum,
+        color: x.win ? '#D60859' : '#2A1B22',
+        style: {
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          background: x.win ? 'linear-gradient(120deg,#FFF7E8,#FFE9C4)' : '#FBF2E7',
+          border: x.win ? '2px solid #E8BD4B' : '2px solid #EAD9C6',
+          borderRadius: '20px', padding: '14px 18px', minHeight: '74px'
+        }
+      })),
+      assumptionsLine: 'الأسبوع = أسبوع تقويمي (حتى ' + c.weekDays + ' أيام دوام) · الشهر = ' + c.monthWeeks + ' أسابيع · الترم = ' + c.termWeeks + ' أسبوعاً (4 أشهر) · الباقة تُحسب بسعرها كاملاً حتى لو كان حضور الطفل أقل · لا توجد ساعات إضافية بالتجزئة — يُرقّى إلى أقرب باقة أعلى · خصم الأخوة ' + c.siblingOff + '% من طفلين',
+      catUrl: p.cat, catLabel: p.catLabel
+    };
+  }
+}
+</script>
+</body>
+</html>
