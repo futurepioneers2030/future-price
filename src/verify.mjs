@@ -3,11 +3,14 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { quote, periodTable, bestUnit, defaults, TIERS } from './calc.js';
+import { promoQuote, policy, officialHours, discounted } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
 const DATA = JSON.parse(readFileSync(join(ROOT, 'data', 'packages.json'), 'utf8'));
+const PROMO = JSON.parse(readFileSync(join(ROOT, 'data', 'promo.json'), 'utf8'));
 const CFG = defaults(DATA);
+const POL = policy(PROMO);
 
 let pass = 0; const fails = [];
 const ok = (name, cond, extra) => { if (cond) pass++; else fails.push(name + (extra ? ' → ' + extra : '')); };
@@ -157,7 +160,7 @@ function codeOnly(src) {
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
     .replace(/const MS = \{[^}]*\};/, ''); // توقيتات المحادثة، لا أسعار
 }
-for (const f of ['chat.js', 'counters.js', 'build.mjs', 'ui.js']) {
+for (const f of ['chat.js', 'chat-main.js', 'chat-promo.js', 'promo.js', 'counters.js', 'build.mjs', 'ui.js']) {
   const src = codeOnly(readFileSync(join(ROOT, 'src', f), 'utf8'));
   const hits = PRICE_LITERALS.filter(n => new RegExp('(?<![\\d.])' + n + '(?![\\d.])').test(src));
   eq('لا أسعار مكتوبة في src/' + f, hits.length, 0, hits.join(','));
@@ -165,9 +168,85 @@ for (const f of ['chat.js', 'counters.js', 'build.mjs', 'ui.js']) {
 ok('توقيتات المحادثة 650/700/850 كما في كراسة التسليم',
   /const MS = \{ intro: 650, step: 700, result: 850/.test(readFileSync(join(ROOT, 'src', 'chat.js'), 'utf8')));
 
-/* ——————— 6) المخرجات المبنية ——————— */
+/* ——————— 6) العرض التحفيزي المؤقت ——————— */
 
-const PAGES = ['index.html', 'parents/index.html', 'embed/index.html', '404.html'];
+// المثال الذي أكّده العميل: 3 ساعات × 3 أيام × شهر = 650 معلن ← 550 بالعرض.
+const p1 = promoQuote(DATA, PROMO, { hours: 3, daysPerWeek: 3, weeks: CFG.monthWeeks, kids: 1 });
+eq('العرض: 3 ساعات × 3 أيام × شهر = 550', p1.net, 550);
+eq('العرض: السعر المعلن لنفس الدوام 650', p1.listNet, 650);
+ok('العرض: الخصم مطبَّق فعلاً', p1.hasPromo === true && p1.promoSaving === 100);
+ok('العرض: التركيبة اشتراك شهري واحد', p1.items.length === 1 && p1.items[0].key === 'month' && p1.items[0].count === 1);
+ok('العرض: لا رابط منتج لسعر غير موجود في المتجر', p1.items.every(i => !i.promo || i.url === null));
+
+// الساعات الرسمية لا تُمَس إطلاقاً
+let officialTouched = 0, cheaperThanList = 0, compositionChanged = 0, underOff = 0, urlLeak = 0, negative = 0, sweptP = 0;
+const OFFICIAL = officialHours(DATA);
+for (let h = 1; h <= 10; h++) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    for (const w of [1, 2, 4, 8, 16, 32]) {
+      for (const kids of [1, 2, 4]) {
+        const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: w, kids });
+        const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: w, kids });
+        sweptP++;
+        if (OFFICIAL.includes(h) && (p.net !== list.net || p.hasPromo)) officialTouched++;
+        if (p.net > list.net) cheaperThanList++;
+        if (p.net <= 0) negative++;
+        // التركيبة نفسها لا تتغير — العرض خصم لا إعادة حساب
+        const a = list.items.map(i => i.key + ':' + i.count).join('|');
+        const b = p.items.map(i => i.key + ':' + i.count).join('|');
+        if (a !== b) compositionChanged++;
+        for (const i of p.items) {
+          if (i.promo && i.url !== null) urlLeak++;
+          // التقريب لأسفل يضمن ألا ينزل الخصم الفعلي تحت النسبة المعلنة
+          if (i.promo && POL.roundMode === 'floor' && i.offPct < POL.off) underOff++;
+        }
+      }
+    }
+  }
+}
+eq('العرض: الباقات الرسمية ' + OFFICIAL.join('/') + ' بلا أي مساس (' + sweptP + ' حالة)', officialTouched, 0);
+eq('العرض: لا يتجاوز السعر المعلن أبداً', cheaperThanList, 0);
+eq('العرض: لا مبلغ صفري أو سالب', negative, 0);
+eq('العرض: التركيبة مطابقة للتركيبة المعتمدة', compositionChanged, 0);
+eq('العرض: الخصم الفعلي لا يقل عن ' + POL.off + '%', underOff, 0);
+eq('العرض: لا رابط متجر على أي سعر عرض', urlLeak, 0);
+
+// إيقاف العرض يُعيد الأداة إلى السعر المعلن حرفياً
+let offMismatch = 0;
+for (let h = 1; h <= 10; h++) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: 4, kids: 1 });
+    const p = promoQuote(DATA, Object.assign({}, PROMO, { active: false }), { hours: h, daysPerWeek: dpw, weeks: 4, kids: 1 });
+    if (p.net !== list.net || p.hasPromo) offMismatch++;
+  }
+}
+eq('العرض: active=false يعيد السعر المعلن تماماً', offMismatch, 0);
+
+// الساعات المشمولة فعلاً = غير الرسمية التي تُرقَّى إلى باقة أعلى
+const promoHours = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(h =>
+  [1, 2, 3, 4, 5].some(d => promoQuote(DATA, PROMO, { hours: h, daysPerWeek: d, weeks: 4, kids: 1 }).hasPromo));
+// الساعتان تدخلان العرض عند كثرة الأيام: 2 ساعة × 5 أيام × شهر تُرقَّى لباقة 4 ساعات (650) لا للساعة (1000).
+ok('العرض: الساعات المشمولة 2 · 3 · 7 · 9 (كل ما يُرقَّى)', promoHours.join(',') === '2,3,7,9', promoHours.join(','));
+ok('العرض: لا شيء رسمي داخل القائمة', promoHours.every(h => !OFFICIAL.includes(h)));
+ok('العرض: الساعة الواحدة بالسعر المعلن دائماً (لا تُرقَّى أبداً)',
+  [1, 2, 3, 4, 5].every(d => [1, 4, 16, 32].every(w =>
+    !promoQuote(DATA, PROMO, { hours: 1, daysPerWeek: d, weeks: w, kids: 1 }).hasPromo)));
+ok('العرض: ساعتان × يومان × شهر بلا خصم (الحساب بالساعة لا ترقية)',
+  !promoQuote(DATA, PROMO, { hours: 2, daysPerWeek: 2, weeks: 4, kids: 1 }).hasPromo);
+eq('العرض: ساعتان × 5 أيام × شهر = 550 (تُرقَّى لباقة 4 ساعات)',
+  promoQuote(DATA, PROMO, { hours: 2, daysPerWeek: 5, weeks: 4, kids: 1 }).net, 550);
+
+// سلامة سياسة العرض في الملف
+ok('سياسة العرض: النسبة بين 1 و50%', POL.off > 0 && POL.off <= 50, String(POL.off));
+ok('سياسة العرض: التقريب من مضاعفات 5', POL.roundTo === 5 || POL.roundTo === 1 || POL.roundTo === 10);
+eq('سياسة العرض: 650 ← ' + discounted(650, POL), discounted(650, POL), 550);
+const badOverride = Object.keys((PROMO.overrides) || {}).filter(k => OFFICIAL.includes(Number(k.split('/')[0])));
+eq('سياسة العرض: لا تجاوز يدوي على ساعات رسمية', badOverride.length, 0, badOverride.join(','));
+eq('خصم الأخوة في العرض هو نفسه', (PROMO.rules && PROMO.rules.siblingOff) ?? CFG.siblingOff, CFG.siblingOff);
+
+/* ——————— 7) المخرجات المبنية ——————— */
+
+const PAGES = ['index.html', 'promo/index.html', 'parents/index.html', 'embed/index.html', '404.html'];
 ok('مجلد site/ موجود', existsSync(SITE));
 for (const rel of PAGES) {
   if (!existsSync(join(SITE, rel))) { fails.push('ملف مفقود: site/' + rel); continue; }
@@ -182,7 +261,18 @@ for (const rel of PAGES) {
   ok(rel + ': JSON المضمّن صالح', !!json && JSON.parse(json[1].replace(/\\u003c/g, '<')).hourlyRate === DATA.hourlyRate);
 }
 
+const promoPage = read('promo/index.html');
+ok('صفحة العرض: بيانات العرض مطبوعة وقت البناء', promoPage.includes('id="rw-promo-data"'));
+ok('صفحة العرض: بلا أزرار شراء', !promoPage.includes('class="rw-buy"'));
+ok('صفحة العرض: بلا اختيار فترة', !promoPage.includes('rw-seg__btn'));
+ok('صفحة العرض: بطاقة شرح قاعدة الخصم', promoPage.includes('كيف يُحسب سعر العرض') && promoPage.includes(POL.off + '%'));
+ok('صفحة العرض: تذكر الباقات الرسمية صراحةً', promoPage.includes(OFFICIAL.join(' · ') + ' ساعات'));
+ok('صفحة العرض: رابط رجوع للحاسبة الرسمية', /href="\/"/.test(promoPage));
+ok('صفحة العرض: JSON العرض صالح',
+  JSON.parse((promoPage.match(/<script type="application\/json" id="rw-promo-data">([\s\S]*?)<\/script>/) || [, '{}'])[1].replace(/\\u003c/g, '<')).off === POL.off);
+
 const idx = read('index.html');
+ok('الصفحة الرئيسية: رابط ظاهر لحاسبة العرض المؤقت', idx.includes('href="/promo/"') && idx.includes('حاسبة العرض المؤقت'));
 ok('الأداة الداخلية: بلا أزرار شراء', !idx.includes('class="rw-buy"'));
 ok('الأداة الداخلية: بلا اختيار فترة', !idx.includes('rw-seg__btn'));
 ok('الأداة الداخلية: تنبيه تطابق الفترتين', idx.includes('الأسعار متطابقة في الفترتين'));
@@ -213,7 +303,7 @@ ok('كل الألوان من رموز التصميم', !/#(?!D60859|941249|5E0B3
 ok('احترام تقليل الحركة', css.includes('prefers-reduced-motion'));
 ok('مؤشر تركيز ظاهر', css.includes(':focus-visible'));
 
-for (const f of ['calc.js', 'ui.js', 'chat.js', 'counters.js']) {
+for (const f of ['calc.js', 'promo.js', 'ui.js', 'chat.js', 'chat-main.js', 'chat-promo.js', 'counters.js']) {
   ok('assets/' + f + ' منسوخ', existsSync(join(SITE, 'assets', f)));
 }
 

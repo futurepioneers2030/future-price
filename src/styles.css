@@ -156,6 +156,17 @@ img{max-width:100%}
 .rw-mini__row .rw-money{font-size:22px}
 .rw-mini__row .rw-money small{font-size:13px}
 .rw-mini__note{margin-top:10px;font-size:13.5px;font-weight:700;color:var(--ink2);line-height:1.8}
+.rw-mini__before{margin-top:6px;font-size:15px;font-weight:700;color:var(--wine)}
+.rw-mini__before s{opacity:.75}
+.rw-mini--promo{border-width:3px}
+.rw-mini__row--promo{border-color:var(--gold);background:linear-gradient(165deg,#FFF7E8,#FFEBC7)}
+
+/* ——— العرض المؤقت ——— */
+.rw-chip--gold{border-color:var(--gold);background:linear-gradient(165deg,#FFF7E8,#FFEBC7);font-weight:800}
+.rw-chat--promo .rw-chat__head{background:linear-gradient(120deg,#5E0B30,#941249)}
+.rw-rules{margin:10px 0 0;padding-inline-start:20px;font-size:15.5px;font-weight:400;color:var(--ink2);line-height:2}
+.rw-rules li{margin-bottom:4px}
+.rw-rules b{color:var(--wine);font-weight:800}
 
 .rw-reply{padding:16px 18px;background:var(--white);border-top:2px solid var(--line)}
 .rw-reply__top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}

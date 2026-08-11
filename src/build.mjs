@@ -3,11 +3,14 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'no
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaults, assumptionsLine, TIERS } from './calc.js';
+import { promoQuote, policy, officialHours } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
 const DATA = JSON.parse(readFileSync(join(ROOT, 'data', 'packages.json'), 'utf8'));
+const PROMO = JSON.parse(readFileSync(join(ROOT, 'data', 'promo.json'), 'utf8'));
 const CFG = defaults(DATA);
+const PROMO_ON = PROMO.active !== false;
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const write = (rel, body) => {
@@ -24,8 +27,8 @@ const FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&amp;family=Almarai:wght@400;700;800&amp;display=swap" rel="stylesheet">`;
 
 // البيانات تُطبع وقت البناء — لا جلب ولا API وقت التشغيل.
-const dataScript = () =>
-  `<script type="application/json" id="rw-calc-data">${JSON.stringify(DATA).replace(/</g, '\\u003c')}</script>`;
+const jsonScript = (id, obj) =>
+  `<script type="application/json" id="${id}">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`;
 
 const head = ({ title, desc, extra = '' }) => `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,7 +40,7 @@ const head = ({ title, desc, extra = '' }) => `<meta charset="utf-8">
 ${FONTS}
 <link rel="stylesheet" href="/assets/styles.css">
 ${extra}
-${dataScript()}`;
+${jsonScript('rw-calc-data', DATA)}`;
 
 const headerBlock = ({ h1, lede, chips = [] }) => `<header class="rw-head">
   <img class="rw-logo" src="${esc(DATA.logo)}" alt="${esc(DATA.brand)}">
@@ -46,8 +49,8 @@ const headerBlock = ({ h1, lede, chips = [] }) => `<header class="rw-head">
   ${chips.length ? `<div class="rw-chips rw-chips--top">${chips.join('')}</div>` : ''}
 </header>`;
 
-const chip = t => `<span class="rw-chip">${esc(t)}</span>`;
-const chipLink = (t, href) => `<a class="rw-chip rw-chip--link" href="${esc(href)}">${esc(t)}</a>`;
+const chip = (t, kind) => `<span class="rw-chip${kind ? ' rw-chip--' + kind : ''}">${esc(t)}</span>`;
+const chipLink = (t, href, kind) => `<a class="rw-chip rw-chip--link${kind ? ' rw-chip--' + kind : ''}" href="${esc(href)}">${esc(t)}</a>`;
 
 const ICON_WA = `<svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2Zm5 13.6c-.2.6-1.2 1.2-1.7 1.2-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1-1.4-1-2.6s.6-1.8.9-2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.4l.9 2.1c.1.2.1.4 0 .6l-.4.6c-.1.2-.3.4-.1.7.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.7-.1l1-1.1c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.5.3.1.2.1.6-.1 1.2Z"/></svg>`;
 const ICON_TEL = `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#941249" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/></svg>`;
@@ -72,6 +75,27 @@ const footSlim = () => `<footer class="rw-foot rw-foot--slim">
 const assumptionsCard = () => `<section class="rw-card rw-card--dashed" aria-label="الأساس الحسابي">
   <h2 class="rw-card__title">الأساس الحسابي</h2>
   <p class="rw-prose">${esc(assumptionsLine(CFG))}</p>
+</section>`;
+
+/* ——— العرض المؤقت ——— */
+
+const POL = policy(PROMO);
+const OFFICIAL = officialHours(DATA);
+// الساعات التي ينطبق عليها العرض فعلاً — تُستنتج من المحرك نفسه، لا تُكتب يدوياً.
+const PROMO_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(h =>
+  [1, 2, 3, 4, 5].some(d =>
+    promoQuote(DATA, PROMO, { hours: h, daysPerWeek: d, weeks: CFG.monthWeeks, kids: 1 }).hasPromo));
+
+const promoRulesCard = () => `<section class="rw-card rw-card--dashed" aria-label="كيف يُحسب سعر العرض">
+  <h2 class="rw-card__title">كيف يُحسب سعر العرض</h2>
+  <ul class="rw-rules">
+    <li><b>الباقات الرسمية (${OFFICIAL.join(' · ')} ساعات)</b> — بسعرها المعلن في دليل الأسعار، بلا أي تغيير.</li>
+    <li><b>الساعات غير الرسمية (${PROMO_HOURS.join(' · ')})</b> — تُحسب على أقرب باقة أعلى، ثم يُخصم ${POL.off}% ويُقرَّب${POL.roundMode === 'floor' ? ' لأسفل' : ''} لأقرب ${POL.roundTo} ريالات. فالخصم الفعلي ${POL.roundMode === 'floor' ? '≥ ' : '≈ '}${POL.off}%.</li>
+    <li><b>الحساب بالساعة (${CFG.hourly} ريال)</b> — سعر معلن رسمي ومقابل ما يُستخدَم بالضبط، فلا خصم عليه.</li>
+    <li><b>خصم الأخوة ${CFG.siblingOff}%</b> من طفلين — يُطبَّق بعد ذلك كالمعتاد.</li>
+    <li>العرض <b>خصم على نفس التركيبة المعتمدة</b>، لا إعادة حساب — فلا ينقلب الاشتراك الشهري إلى اشتراكات يومية.</li>
+  </ul>
+  <p class="rw-prose">${esc('سعر العرض غير مرتبط بمنتج في المتجر — يُفعَّل عبر إدارة المركز.' + (PROMO.validUntil ? ' سريان العرض: ' + PROMO.validUntil + '.' : ''))}</p>
 </section>`;
 
 /** جدول الأسعار الكامل لفترة واحدة — البديل الثابت عند تعطيل JavaScript. */
@@ -125,17 +149,49 @@ ${body}
 const indexHtml = page({
   title: 'حاسبة تسعير الاشتراكات — ' + DATA.brand,
   desc: 'أداة داخلية لإدارة المركز تحسب السعر العادل لأي دوام من أسعار الباقات المعلنة.',
-  script: '/assets/chat.js',
+  script: '/assets/chat-main.js',
   body: `<a class="rw-skip" href="#rw-chat">تخطَّ إلى الحاسبة</a>
 <div class="rw-shell">
   <div class="rw-bar"></div>
   ${headerBlock({
     h1: 'حاسبة تسعير الاشتراكات',
     lede: 'أداة داخلية لإدارة المركز — تحسب السعر العادل من الباقات المعلنة',
-    chips: [chip('الأسعار متطابقة في الفترتين الصباحية والمسائية'), chipLink('نسخة الأهالي مع روابط الشراء ↗', '/parents/')]
+    chips: [
+      PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : '',
+      chip('الأسعار متطابقة في الفترتين الصباحية والمسائية'),
+      chipLink('نسخة الأهالي مع روابط الشراء ↗', '/parents/')
+    ].filter(Boolean)
   })}
   <main class="rw-wrap rw-wrap--narrow">
     <div id="rw-chat">${fallback(false)}</div>
+    ${assumptionsCard()}
+  </main>
+  ${footSlim()}
+  <div class="rw-bar rw-bar--end"></div>
+</div>`
+});
+
+// 2) حاسبة العرض المؤقت — نفس المحادثة، بسياسة خصم مختلفة تماماً.
+const promoHtml = page({
+  title: 'حاسبة العرض المؤقت — ' + DATA.brand,
+  desc: 'أداة داخلية تحسب سعر العرض التحفيزي المؤقت على الساعات غير الرسمية.',
+  bodyClass: 'rw-promo',
+  script: '/assets/chat-promo.js',
+  extraHead: jsonScript('rw-promo-data', PROMO),
+  body: `<a class="rw-skip" href="#rw-chat">تخطَّ إلى الحاسبة</a>
+<div class="rw-shell">
+  <div class="rw-bar"></div>
+  ${headerBlock({
+    h1: PROMO.headline || 'حاسبة العرض المؤقت',
+    lede: PROMO.lede || 'خصم تحفيزي على الساعات غير الرسمية',
+    chips: [
+      chip(PROMO.badge || 'عرض مؤقت', 'gold'),
+      chipLink('← الحاسبة الرسمية', '/')
+    ]
+  })}
+  <main class="rw-wrap rw-wrap--narrow">
+    <div id="rw-chat">${fallback(false)}</div>
+    ${promoRulesCard()}
     ${assumptionsCard()}
   </main>
   ${footSlim()}
@@ -154,7 +210,7 @@ const parentsBody = (embed) => `<div class="rw-shell">
   <main class="rw-wrap" id="rw-calc-main">
     <div id="rw-calc">${fallback(true)}</div>
     ${assumptionsCard()}
-    <div class="rw-chips" style="margin-top:16px">${DATA.notes.map(chip).join('')}</div>
+    <div class="rw-chips" style="margin-top:16px">${DATA.notes.map(n => chip(n)).join('')}</div>
     <p class="rw-cat"><a id="rw-cat" href="${esc(DATA.periods.morning.categoryUrl)}" target="_blank" rel="noopener">تصفح كل باقات ${esc(DATA.periods.morning.label)} في المتجر ↗</a></p>
   </main>
   ${embed ? '' : footFull()}
@@ -182,7 +238,7 @@ const notFoundHtml = page({
   script: '/assets/noop.js',
   body: `<div class="rw-shell">
   <div class="rw-bar"></div>
-  ${headerBlock({ h1: 'الصفحة غير موجودة', lede: 'الرابط الذي فتحته غير صحيح أو تغيّر.', chips: [chipLink('أداة التسعير الداخلية ↗', '/'), chipLink('حاسبة الأهالي ↗', '/parents/')] })}
+  ${headerBlock({ h1: 'الصفحة غير موجودة', lede: 'الرابط الذي فتحته غير صحيح أو تغيّر.', chips: [chipLink('أداة التسعير الداخلية ↗', '/'), PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : '', chipLink('حاسبة الأهالي ↗', '/parents/')].filter(Boolean) })}
   <main class="rw-wrap rw-wrap--narrow"></main>
   ${footSlim()}
   <div class="rw-bar rw-bar--end"></div>
@@ -196,6 +252,7 @@ mkdirSync(SITE, { recursive: true });
 
 const out = [
   write('index.html', indexHtml),
+  write('promo/index.html', promoHtml),
   write('parents/index.html', parentsHtml),
   write('embed/index.html', embedHtml),
   write('404.html', notFoundHtml),
@@ -211,7 +268,7 @@ const out = [
   write('assets/noop.js', 'export {};\n')
 ];
 
-for (const f of ['calc.js', 'ui.js', 'chat.js', 'counters.js', 'styles.css']) {
+for (const f of ['calc.js', 'promo.js', 'ui.js', 'chat.js', 'chat-main.js', 'chat-promo.js', 'counters.js', 'styles.css']) {
   mkdirSync(join(SITE, 'assets'), { recursive: true });
   copyFileSync(join(ROOT, 'src', f), join(SITE, 'assets', f));
   out.push('assets/' + f);
@@ -219,4 +276,8 @@ for (const f of ['calc.js', 'ui.js', 'chat.js', 'counters.js', 'styles.css']) {
 
 console.log('بُنيت ' + out.length + ' ملفاً في site/:');
 out.forEach(f => console.log('  · ' + f));
-console.log('الشرائح: ' + TIERS.join('، ') + ' ساعات · سعر الساعة ' + CFG.hourly + ' ريال');
+console.log('الشرائح الرسمية: ' + TIERS.join('، ') + ' ساعات · سعر الساعة ' + CFG.hourly + ' ريال');
+console.log(PROMO_ON
+  ? 'العرض المؤقت: خصم ' + POL.off + '% على الساعات ' + PROMO_HOURS.join('، ') +
+    ' (تقريب ' + (POL.roundMode === 'floor' ? 'لأسفل ' : '') + 'لأقرب ' + POL.roundTo + ')'
+  : 'العرض المؤقت: متوقف (active = false)');

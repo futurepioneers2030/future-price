@@ -187,8 +187,8 @@ export function assumptionsLine(cfg) {
 }
 
 /** يقرأ البيانات المطبوعة وقت البناء داخل الصفحة. */
-export function readEmbeddedData(doc) {
-  const node = (doc || document).getElementById('rw-calc-data');
-  if (!node) throw new Error('بيانات الأسعار غير موجودة في الصفحة');
+export function readEmbeddedData(doc, id) {
+  const node = (doc || document).getElementById(id || 'rw-calc-data');
+  if (!node) throw new Error('بيانات غير موجودة في الصفحة: ' + (id || 'rw-calc-data'));
   return JSON.parse(node.textContent);
 }
