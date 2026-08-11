@@ -244,7 +244,22 @@ eq('سعر الساعة بعد الخصم = ' + RATE, RATE, Math.round(CFG.hourl
 eq('الخصم: ساعتان × 4 أيام × شهر = 520 (بدل 650)', Q(2, 4, CFG.monthWeeks, 1).net, 520);
 eq('الخصم: نفس المثال بالأسعار المعلنة 650', Q(2, 4, CFG.monthWeeks, 1).listPerChild, 650);
 eq('الخصم: ساعتان × 3 أيام × شهر = 390 (بدل 600)', Q(2, 3, CFG.monthWeeks, 1).net, 390);
-eq('الخصم: 3 ساعات × 3 أيام × شهر = 585 (بدل 650)', Q(3, 3, CFG.monthWeeks, 1).net, 585);
+eq('الخصم: 3 ساعات × 3 أيام × شهر = 550 (بدل 650)', Q(3, 3, CFG.monthWeeks, 1).net, 550);
+
+// خصم النسبة على الباقة — يفيد 7 و9 ساعات
+eq('الخصم: 7 ساعات × 5 أيام × شهر = 890 (بدل 1050)', Q(7, 5, CFG.monthWeeks, 1).net, 890);
+eq('الخصم: 9 ساعات × 5 أيام × شهر = 1060 (بدل 1250)', Q(9, 5, CFG.monthWeeks, 1).net, 1060);
+ok('الخصم: 7 و9 يسلكان مسار الباقة لا الساعة',
+  Q(7, 5, CFG.monthWeeks, 1).flexKind === 'package' && Q(9, 5, CFG.monthWeeks, 1).flexKind === 'package');
+ok('الخصم: 7 ساعات تبقى أغلى من 6 ساعات المعلنة',
+  Q(7, 5, CFG.monthWeeks, 1).net > Q(6, 5, CFG.monthWeeks, 1).net,
+  Q(7, 5, CFG.monthWeeks, 1).net + ' مقابل ' + Q(6, 5, CFG.monthWeeks, 1).net);
+ok('الخصم: 9 ساعات تبقى أغلى من 8 ساعات المعلنة',
+  Q(9, 5, CFG.monthWeeks, 1).net > Q(8, 5, CFG.monthWeeks, 1).net);
+ok('سياسة الخصم: نسبة الباقة ≤ 16% (فوقها ينكسر ترتيب الأسعار)',
+  POL.packageOff > 0 && POL.packageOff <= 16, String(POL.packageOff));
+ok('الخصم: سطر الباقة المخصومة بلا رابط متجر',
+  Q(7, 5, CFG.monthWeeks, 1).items.every(i => !i.flex || i.url === null));
 ok('الخصم: سعر الساعة الفعلي = ' + RATE + ' في المثال', Q(2, 4, CFG.monthWeeks, 1).net / 32 === RATE);
 ok('الخصم: العنصر المرن بلا رابط متجر', Q(2, 4, CFG.monthWeeks, 1).items.every(i => !i.flex || i.url === null));
 

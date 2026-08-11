@@ -99,6 +99,7 @@ export function discountPolicy(data) {
   return {
     active: d.active !== false,
     hourlyOff: d.hourlyOff ?? 35,
+    packageOff: d.packageOff ?? 15,
     minHours: d.minHours ?? 2,
     durations: d.durations || ['month'],
     roundTo: d.roundTo ?? 5,
@@ -163,30 +164,52 @@ export function quote(data, input) {
     });
   }
 
-  /* خصم الدوام المرن: من لا تقابل ساعاتِه باقةٌ معلنة ويشترك شهرياً
-     يُحسب له سعر ساعة مخفَّض، ويؤخذ الأرخص بينه وبين السعر المعلن.
-     الباقات المعلنة لا تُمَس إطلاقاً. */
+  /* خصم الدوام المرن: من لا تقابل ساعاتِه باقةٌ معلنة ويشترك شهرياً يُسعَّر بالأرخص من:
+       (١) كل ساعات الدوام × سعر ساعة مخفَّض (hourlyOff) — يفيد قليلي الساعات والأيام،
+       (٢) نفس التركيبة المعلنة مع خصم packageOff% على أسطر الباقات المرقّاة — يفيد 7 و9 ساعات.
+     الباقات المعلنة لا تُمَس إطلاقاً، ولا يُخصم سطرٌ شريحته تساوي ساعات الطفل. */
   const pol = discountPolicy(data);
   const duration = input.duration || durationOf(weeks, cfg);
   const rate = flexRate(data, pol);
+  const step = pol.roundTo > 1 ? pol.roundTo : 1;
+  const down = v => Math.floor(v / step) * step;
   const eligible = pol.active && h >= pol.minHours &&
     !hasOfficialPackage(data, h) && pol.durations.includes(duration);
-  const flexCost = eligible
-    ? Math.floor(totalHours * rate / (pol.roundTo > 1 ? pol.roundTo : 1)) * (pol.roundTo > 1 ? pol.roundTo : 1)
-    : Infinity;
-  const flex = eligible && flexCost < listPerChild;
+
+  const hourlyFlex = eligible ? down(totalHours * rate) : Infinity;
+  const pkgItems = eligible
+    ? items.map(i => (i.tier && i.tier > h
+      ? Object.assign({}, i, { sum: down(i.sum * (1 - pol.packageOff / 100)), listSum: i.sum, flex: true, url: null })
+      : i))
+    : items;
+  const pkgFlex = eligible ? pkgItems.reduce((a, i) => a + i.sum, 0) : Infinity;
+
+  const bestFlex = Math.min(hourlyFlex, pkgFlex);
+  const flex = eligible && bestFlex < listPerChild;
 
   let perChild = listPerChild;
   if (flex) {
-    perChild = flexCost;
-    // سعر مرن لا يقابله منتج في المتجر، فلا رابط شراء له.
+    perChild = bestFlex;
     items.length = 0;
-    items.push({
-      key: 'flex', tier: null, count: 1, unitCost: flexCost, sum: flexCost, url: null, flex: true,
-      title: 'اشتراك مرن · ' + ar(h, HOUR_F) + ' يومياً',
-      detail: ar(totalHours, HOUR_F) + ' × ' + rate + ' ريال (سعر الساعة المخفَّض بدل ' +
-        cfg.hourly + ') · يغطي ' + coverDays(totalDays)
-    });
+    if (hourlyFlex <= pkgFlex) {
+      // سعر مرن لا يقابله منتج في المتجر، فلا رابط شراء له.
+      items.push({
+        key: 'flex', tier: null, count: 1, unitCost: hourlyFlex, sum: hourlyFlex, url: null, flex: true,
+        title: 'اشتراك مرن · ' + ar(h, HOUR_F) + ' يومياً',
+        detail: ar(totalHours, HOUR_F) + ' × ' + rate + ' ريال (سعر الساعة المخفَّض بدل ' +
+          cfg.hourly + ') · يغطي ' + coverDays(totalDays)
+      });
+    } else {
+      for (const i of pkgItems) {
+        if (!i.flex) { items.push(i); continue; }
+        const off = Math.round((1 - i.sum / i.listSum) * 1000) / 10;
+        items.push(Object.assign({}, i, {
+          title: 'اشتراك مرن · ' + i.title,
+          detail: i.sum + ' ريال بدل ' + i.listSum + ' (−' + off + '%) · ' +
+            i.detail.replace(/^\d+ ريال للواحد · /, '')
+        }));
+      }
+    }
   }
 
   const gross = perChild * kids;
@@ -213,13 +236,17 @@ export function quote(data, input) {
   if (m.tier) { const n = Math.ceil(totalDays / m.days); rows.push({ key: 'month', label: 'اشتراك شهري', detail: ar(n, MONTH_F) + ' × ' + m.cost + ' ريال', sum: m.cost * n }); }
   if (t.tier) { const n = Math.ceil(totalDays / t.days); rows.push({ key: 'term', label: 'اشتراك بالترم', detail: ar(n, TERM_F) + ' × ' + t.cost + ' ريال', sum: t.cost * n }); }
 
+  const flexKind = flex ? (hourlyFlex <= pkgFlex ? 'hourly' : 'package') : null;
   const upgradeNote = flex
-    ? 'لا توجد باقة ' + h + ' ساعات، فحُسب اشتراك مرن بسعر ساعة ' + rate + ' ريال (أقل ' +
-      pol.hourlyOff + '% من ' + cfg.hourly + ') بدل ' + listPerChild + ' ريال بالأسعار المعلنة.'
+    ? (flexKind === 'hourly'
+      ? 'لا توجد باقة ' + h + ' ساعات، فحُسب اشتراك مرن بسعر ساعة ' + rate + ' ريال (أقل ' +
+        pol.hourlyOff + '% من ' + cfg.hourly + ') بدل ' + listPerChild + ' ريال بالأسعار المعلنة.'
+      : 'لا توجد باقة ' + h + ' ساعات، فحُسبت على باقة ' + upTier + ' ساعات مخصومة ' +
+        pol.packageOff + '% — ' + perChild + ' ريال بدل ' + listPerChild + ' المعلن.')
     : (upgraded ? 'لا توجد باقة ' + h + ' ساعات، فحُسبت على أقرب باقة أعلى: ' + upTier + ' ساعات.' : '');
 
   return {
-    cfg, pol, duration, flex, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
+    cfg, pol, duration, flex, flexKind, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
     period: { key: tab.key, label: tab.label, categoryUrl: tab.categoryUrl, hourUrl: tab.hour.url },
     hours: h, daysPerWeek: dpw, weeks, kids, totalDays, totalHours,
     perChild, gross, discount, net, saving, hourlyPerChild,
