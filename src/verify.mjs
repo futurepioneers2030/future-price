@@ -2,7 +2,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { quote, periodTable, bestUnit, defaults, TIERS } from './calc.js';
+import { quote, periodTable, bestUnit, defaults, TIERS, ar, coverDays, DAY_F } from './calc.js';
 import { promoQuote, policy, officialHours, promoHoursList, discounted } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -254,7 +254,7 @@ eq('خصم الأخوة في العرض هو نفسه', (PROMO.rules && PROMO.ru
 
 /* ——————— 7) المخرجات المبنية ——————— */
 
-const PAGES = ['index.html', 'promo/index.html', 'parents/index.html', 'embed/index.html', '404.html'];
+const PAGES = ['index.html', 'promo/index.html', 'table/index.html', 'parents/index.html', 'embed/index.html', '404.html'];
 ok('مجلد site/ موجود', existsSync(SITE));
 for (const rel of PAGES) {
   if (!existsSync(join(SITE, rel))) { fails.push('ملف مفقود: site/' + rel); continue; }
@@ -278,6 +278,43 @@ ok('صفحة العرض: تذكر الباقات الرسمية صراحةً', p
 ok('صفحة العرض: رابط رجوع للحاسبة الرسمية', /href="\/"/.test(promoPage));
 ok('صفحة العرض: JSON العرض صالح',
   JSON.parse((promoPage.match(/<script type="application\/json" id="rw-promo-data">([\s\S]*?)<\/script>/) || [, '{}'])[1].replace(/\\u003c/g, '<')).off === POL.off);
+
+/* ——— المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم ——— */
+const chatSrc = readFileSync(join(ROOT, 'src', 'chat.js'), 'utf8');
+ok('خطوة المدة: لا زر «شهران»', !/qbtn\('شهران'/.test(chatSrc) && !read('index.html').includes('>شهران<'));
+ok('خطوة المدة: أسبوع · شهر · ترم فقط',
+  ['أسبوع', 'شهر', 'ترم كامل'].every(t => chatSrc.includes("qbtn('" + t + "'")) &&
+  (chatSrc.match(/qbtn\('(أسبوع|شهر|ترم كامل)'/g) || []).length === 3);
+
+/* ——— جدول المقارنة الكامل ——— */
+const tbl = read('table/index.html');
+const DURS = [{ w: 1, n: 'أسبوع' }, { w: CFG.monthWeeks, n: 'شهر' }, { w: CFG.termWeeks, n: 'ترم' }];
+eq('جدول المقارنة: 15 جدولاً (3 مدد × 5 أيام)', (tbl.match(/class="rw-mx"/g) || []).length, 15);
+ok('جدول المقارنة: بلا خيار شهران', !tbl.includes('شهران'));
+ok('جدول المقارنة: يشرح مصدر كل عمود', tbl.includes('كيف تقرأ الجدول') && tbl.includes(String(POL.hourlyRate)));
+ok('جدول المقارنة: مربوط من الصفحة الرئيسية', read('index.html').includes('href="/table/"'));
+
+// كل خلية في الصفحة مطابقة للمحرك — مسح كامل على 150 خلية
+let cellBad = 0, cells = 0, promoCells = 0;
+for (const d of DURS) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    const block = tbl.split('<figure class="rw-mx">').find(b =>
+      b.includes('<b>' + d.n + '</b> · ' + ar(dpw, DAY_F) + ' أسبوعياً') && b.includes(coverDays(dpw * d.w)));
+    if (!block) { fails.push('جدول مفقود: ' + d.n + ' · ' + dpw + ' أيام'); continue; }
+    for (let h = 1; h <= 10; h++) {
+      const l = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: d.w, kids: 1 });
+      const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: d.w, kids: 1 });
+      const row = (block.match(new RegExp('<td>' + h + '</td>[\\s\\S]*?</tr>')) || [''])[0];
+      cells++;
+      const wantList = '<td>' + l.net + '</td>';
+      const wantPromo = p.net < l.net ? '<td>' + p.net + '</td>' : '<span class="same">';
+      if (!row.includes(wantList) || !row.includes(wantPromo)) cellBad++;
+      if (p.net < l.net) promoCells++;
+    }
+  }
+}
+eq('جدول المقارنة: كل خلية مطابقة للمحرك (' + cells + ' خلية)', cellBad, 0);
+ok('جدول المقارنة: فيه خلايا عرض فعلية (' + promoCells + ')', promoCells > 0);
 
 const idx = read('index.html');
 ok('الصفحة الرئيسية: رابط ظاهر لحاسبة العرض المؤقت', idx.includes('href="/promo/"') && idx.includes('حاسبة العرض المؤقت'));

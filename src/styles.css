@@ -194,6 +194,22 @@ img{max-width:100%}
 .rw-table a{font-weight:800;text-decoration:none}
 .rw-table a:hover{text-decoration:underline}
 
+/* ——— جدول المقارنة الكامل ——— */
+.rw-wrap--wide{max-width:1180px}
+.rw-card__sub{font-family:var(--f-body);font-size:15px;font-weight:700;color:var(--ink2)}
+.rw-mx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.rw-mx{margin:0}
+.rw-mx figcaption{font-family:var(--f-head);font-weight:800;font-size:17px;color:var(--wine);padding:0 0 8px;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.rw-mx figcaption span{font-family:var(--f-body);font-size:13.5px;font-weight:700;color:var(--ink2)}
+.rw-table--mx{min-width:0;font-size:15px}
+.rw-table--mx th,.rw-table--mx td{padding:8px 6px;border-width:1.5px}
+.rw-table--mx td:first-child{background:var(--cream)}
+.rw-table--mx small{font-family:var(--f-body);font-size:12px;font-weight:700}
+.rw-table--mx .is-promo td{background:linear-gradient(165deg,#FFF7E8,#FFEBC7)}
+.rw-table--mx .is-promo td:nth-child(3),.rw-table--mx .is-promo td:nth-child(4){color:var(--pink);font-weight:800}
+.rw-table--mx .same{color:var(--ink2);font-weight:700;font-size:13.5px}
+.rw-table--mx .tag{display:inline-block;background:var(--cream);border:1.5px solid var(--line2);border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:800;color:var(--wine)}
+
 /* ——— التذييل ——— */
 .rw-foot{margin-top:36px;background:var(--white);border-top:1.5px solid var(--line);padding:28px 18px 24px;text-align:center}
 .rw-foot--slim{margin-top:32px;padding:24px 18px 22px}

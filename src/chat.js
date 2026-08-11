@@ -154,11 +154,11 @@ export function startChat(opts) {
         qbtn(String(d), d > 2 ? 'أيام' : null, opts.markDays && opts.markDays(S.hours, d) ? 'gold' : null,
           () => answer('days', d, ar(d, DAY_F) + ' أسبوعياً', 'weeks', 'وكم مدة الاشتراك؟')));
     } else if (S.stage === 'weeks') {
-      step = 'الخطوة 3 من 4 — المدة'; label = 'مدة الاشتراك:'; cols = 2;
+      // المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم — لا «شهران».
+      step = 'الخطوة 3 من 4 — المدة'; label = 'مدة الاشتراك:'; cols = 3;
       btns = [
         qbtn('أسبوع', 'أسبوع واحد', null, () => answer('weeks', 1, 'أسبوع', 'kids', 'وكم عدد الأطفال؟')),
         qbtn('شهر', CFG.monthWeeks + ' أسابيع', null, () => answer('weeks', CFG.monthWeeks, 'شهر', 'kids', 'وكم عدد الأطفال؟')),
-        qbtn('شهران', (CFG.monthWeeks * 2) + ' أسبوعاً', null, () => answer('weeks', CFG.monthWeeks * 2, 'شهران', 'kids', 'وكم عدد الأطفال؟')),
         qbtn('ترم كامل', CFG.termWeeks + ' أسبوعاً', 'gold', () => answer('weeks', CFG.termWeeks, 'ترم كامل', 'kids', 'وكم عدد الأطفال؟'))
       ];
     } else if (S.stage === 'kids') {

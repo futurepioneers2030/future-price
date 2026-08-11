@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaults, assumptionsLine, TIERS } from './calc.js';
+import { defaults, assumptionsLine, TIERS, quote as quoteFn, ar, coverDays, DAY_F } from './calc.js';
 import { promoQuote, policy, officialHours, promoHoursList } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +131,46 @@ function fallback(withLinks) {
   </section>`;
 }
 
+/* ——— جدول المقارنة الكامل ——— */
+
+// المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم.
+const DURATIONS = [
+  { key: 'week', label: 'أسبوع', weeks: 1, sub: 'أسبوع واحد' },
+  { key: 'month', label: 'شهر', weeks: CFG.monthWeeks, sub: CFG.monthWeeks + ' أسابيع' },
+  { key: 'term', label: 'ترم', weeks: CFG.termWeeks, sub: CFG.termWeeks + ' أسبوعاً (4 أشهر)' }
+];
+const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const DAYS = [1, 2, 3, 4, 5];
+
+function matrixTable(dur, dpw) {
+  const rows = HOURS.map(h => {
+    const l = quoteFn(DATA, { hours: h, daysPerWeek: dpw, weeks: dur.weeks, kids: 1 });
+    const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: dur.weeks, kids: 1 });
+    const diff = l.net - p.net;
+    const off = diff > 0 ? Math.round((diff / l.net) * 1000) / 10 : 0;
+    const official = OFFICIAL.includes(h);
+    return `<tr class="${diff > 0 ? 'is-promo' : (official ? 'is-official' : '')}">
+      <td>${h}</td><td>${l.net}</td><td>${diff > 0 ? p.net : '<span class="same">نفسه</span>'}</td>
+      <td>${diff > 0 ? '−' + diff + ' <small>(−' + off + '%)</small>' : (official ? '<span class="tag">رسمية</span>' : '—')}</td>
+    </tr>`;
+  }).join('\n      ');
+  return `<figure class="rw-mx">
+    <figcaption><b>${esc(dur.label)}</b> · ${esc(ar(dpw, DAY_F))} أسبوعياً
+      <span>${esc(coverDays(dpw * dur.weeks))}</span></figcaption>
+    <table class="rw-table rw-table--mx">
+      <thead><tr><th scope="col">ساعات</th><th scope="col">المعلن</th><th scope="col">العرض</th><th scope="col">الفرق</th></tr></thead>
+      <tbody>
+      ${rows}
+      </tbody>
+    </table>
+  </figure>`;
+}
+
+const matrixSection = () => DURATIONS.map(dur => `<section class="rw-card" aria-label="جدول ${esc(dur.label)}">
+  <h2 class="rw-card__title">اشتراك ${esc(dur.label)} <span class="rw-card__sub">${esc(dur.sub)}</span></h2>
+  <div class="rw-mx-grid">${DAYS.map(d => matrixTable(dur, d)).join('\n')}</div>
+</section>`).join('\n');
+
 const page = ({ title, desc, bodyClass = '', extraHead = '', body, script }) => `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -158,8 +198,9 @@ const indexHtml = page({
     lede: 'أداة داخلية لإدارة المركز — تحسب السعر العادل من الباقات المعلنة',
     chips: [
       PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : '',
-      chip('الأسعار متطابقة في الفترتين الصباحية والمسائية'),
-      chipLink('نسخة الأهالي مع روابط الشراء ↗', '/parents/')
+      chipLink('جدول الأسعار الكامل ↗', '/table/'),
+      chipLink('نسخة الأهالي مع روابط الشراء ↗', '/parents/'),
+      chip('الأسعار متطابقة في الفترتين الصباحية والمسائية')
     ].filter(Boolean)
   })}
   <main class="rw-wrap rw-wrap--narrow">
@@ -232,6 +273,40 @@ const embedHtml = page({
   body: parentsBody(true)
 });
 
+// 3) جدول المقارنة الكامل — المعلن مقابل العرض، لكل الساعات والأيام والمدد.
+const tableHtml = page({
+  title: 'جدول الأسعار الكامل — ' + DATA.brand,
+  desc: 'مقارنة كاملة بين الأسعار المعلنة وأسعار العرض المؤقت لكل الساعات والأيام والمدد.',
+  script: '/assets/noop.js',
+  body: `<div class="rw-shell">
+  <div class="rw-bar"></div>
+  ${headerBlock({
+    h1: 'جدول الأسعار الكامل',
+    lede: 'الأسعار المعلنة مقابل أسعار العرض المؤقت — لكل طفل، قبل خصم الأخوة',
+    chips: [
+      chipLink('← الحاسبة الرسمية', '/'),
+      PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : ''
+    ].filter(Boolean)
+  })}
+  <main class="rw-wrap rw-wrap--wide">
+    <section class="rw-card rw-card--dashed" aria-label="كيف تقرأ الجدول">
+      <h2 class="rw-card__title">كيف تقرأ الجدول</h2>
+      <ul class="rw-rules">
+        <li><b>المعلن</b> — سعر الأداة الرسمية من دليل الأسعار (${OFFICIAL.join(' · ')} ساعات).</li>
+        <li><b>العرض</b> — سعر «الباقة بالطلب»: الأرخص من (كل الساعات × ${POL.hourlyRate} ريال) أو (أقرب باقة أعلى مخصومة ${POL.off}%)، مقرَّباً لأسفل لأقرب ${POL.roundTo} ريالات.</li>
+        <li><b>نفسه</b> — الساعات لها باقة رسمية معلنة، فلا يُمس سعرها.</li>
+        <li>كل المبالغ <b>لكل طفل</b> وقبل خصم الأخوة ${CFG.siblingOff}% (من طفلين فأكثر).</li>
+        <li>المدد المعتمدة ثلاث: <b>أسبوع · شهر · ترم</b>. والأسعار متطابقة في الفترتين الصباحية والمسائية.</li>
+      </ul>
+    </section>
+    ${matrixSection()}
+    ${assumptionsCard()}
+  </main>
+  ${footSlim()}
+  <div class="rw-bar rw-bar--end"></div>
+</div>`
+});
+
 const notFoundHtml = page({
   title: 'الصفحة غير موجودة — ' + DATA.brand,
   desc: 'الصفحة المطلوبة غير موجودة.',
@@ -253,6 +328,7 @@ mkdirSync(SITE, { recursive: true });
 const out = [
   write('index.html', indexHtml),
   write('promo/index.html', promoHtml),
+  write('table/index.html', tableHtml),
   write('parents/index.html', parentsHtml),
   write('embed/index.html', embedHtml),
   write('404.html', notFoundHtml),
