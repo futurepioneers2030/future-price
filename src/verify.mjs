@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { quote, periodTable, bestUnit, defaults, TIERS } from './calc.js';
-import { promoQuote, policy, officialHours, discounted } from './promo.js';
+import { promoQuote, policy, officialHours, promoHoursList, discounted } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
@@ -168,47 +168,63 @@ for (const f of ['chat.js', 'chat-main.js', 'chat-promo.js', 'promo.js', 'counte
 ok('توقيتات المحادثة 650/700/850 كما في كراسة التسليم',
   /const MS = \{ intro: 650, step: 700, result: 850/.test(readFileSync(join(ROOT, 'src', 'chat.js'), 'utf8')));
 
-/* ——————— 6) العرض التحفيزي المؤقت ——————— */
+/* ——————— 6) العرض التحفيزي المؤقت — الباقات بالطلب ——————— */
 
-// المثال الذي أكّده العميل: 3 ساعات × 3 أيام × شهر = 650 معلن ← 550 بالعرض.
-const p1 = promoQuote(DATA, PROMO, { hours: 3, daysPerWeek: 3, weeks: CFG.monthWeeks, kids: 1 });
+const OFFICIAL = officialHours(DATA);
+const PQ = (h, d, w, k, pr) => promoQuote(DATA, pr || PROMO, { hours: h, daysPerWeek: d, weeks: w, kids: k || 1 });
+
+// المثال الذي أكّده العميل: 3 ساعات × 3 أيام × شهر = 36 ساعة × 15.29 ← 550.
+const p1 = PQ(3, 3, CFG.monthWeeks, 1);
 eq('العرض: 3 ساعات × 3 أيام × شهر = 550', p1.net, 550);
 eq('العرض: السعر المعلن لنفس الدوام 650', p1.listNet, 650);
-ok('العرض: الخصم مطبَّق فعلاً', p1.hasPromo === true && p1.promoSaving === 100);
-ok('العرض: التركيبة اشتراك شهري واحد', p1.items.length === 1 && p1.items[0].key === 'month' && p1.items[0].count === 1);
-ok('العرض: لا رابط منتج لسعر غير موجود في المتجر', p1.items.every(i => !i.promo || i.url === null));
+ok('العرض: سعر الساعة الفعلي ≈ ' + POL.hourlyRate, p1.effectiveHourly <= POL.hourlyRate && p1.effectiveHourly > POL.hourlyRate - 0.5, String(p1.effectiveHourly));
 
-// الساعات الرسمية لا تُمَس إطلاقاً
-let officialTouched = 0, cheaperThanList = 0, compositionChanged = 0, underOff = 0, urlLeak = 0, negative = 0, sweptP = 0;
-const OFFICIAL = officialHours(DATA);
+// الخلل الذي رصده العميل: ساعتان كانتا أغلى من 3 ساعات لنفس الدوام.
+const p2 = PQ(2, 3, CFG.monthWeeks, 1);
+ok('العرض: ساعتان × 3 أيام × شهر أقل من 3 ساعات', p2.net < p1.net, p2.net + ' مقابل ' + p1.net);
+eq('العرض: ساعتان × 3 أيام × شهر = 24 ساعة × ' + POL.hourlyRate, p2.net, Math.floor(24 * POL.hourlyRate / POL.roundTo) * POL.roundTo);
+
+// ——— الضمانة الحاكمة: لا يدفع صاحب الساعات الأقل أكثر ———
+let notMonotonic = 0, monoChecked = 0;
+const worst = [];
+for (let dpw = 1; dpw <= 5; dpw++) {
+  for (let w = 1; w <= CFG.maxWeeks; w++) {
+    for (const kids of [1, 2, 3, 4]) {
+      let prev = -1;
+      for (let h = 1; h <= 10; h++) {
+        const n = PQ(h, dpw, w, kids).net;
+        if (n < prev) { notMonotonic++; if (worst.length < 3) worst.push(`d=${dpw} w=${w} k=${kids} h=${h}: ${n} < ${prev}`); }
+        prev = n; monoChecked++;
+      }
+    }
+  }
+}
+eq('العرض: السعر لا ينقص أبداً كلما زادت الساعات (' + monoChecked + ' حالة)', notMonotonic, 0, worst.join(' · '));
+
+// ——— ثوابت أخرى على كامل الفضاء ———
+let officialTouched = 0, aboveList = 0, urlLeak = 0, nonPositive = 0, overHourly = 0, sweptP = 0;
 for (let h = 1; h <= 10; h++) {
   for (let dpw = 1; dpw <= 5; dpw++) {
     for (const w of [1, 2, 4, 8, 16, 32]) {
       for (const kids of [1, 2, 4]) {
         const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: w, kids });
-        const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: w, kids });
+        const p = PQ(h, dpw, w, kids);
         sweptP++;
-        if (OFFICIAL.includes(h) && (p.net !== list.net || p.hasPromo)) officialTouched++;
-        if (p.net > list.net) cheaperThanList++;
-        if (p.net <= 0) negative++;
-        // التركيبة نفسها لا تتغير — العرض خصم لا إعادة حساب
-        const a = list.items.map(i => i.key + ':' + i.count).join('|');
-        const b = p.items.map(i => i.key + ':' + i.count).join('|');
-        if (a !== b) compositionChanged++;
-        for (const i of p.items) {
-          if (i.promo && i.url !== null) urlLeak++;
-          // التقريب لأسفل يضمن ألا ينزل الخصم الفعلي تحت النسبة المعلنة
-          if (i.promo && POL.roundMode === 'floor' && i.offPct < POL.off) underOff++;
-        }
+        if (OFFICIAL.includes(h) && p.net !== list.net) officialTouched++;
+        if (p.net > list.net) aboveList++;
+        if (p.net <= 0) nonPositive++;
+        // الباقة بالطلب لا تتجاوز أبداً سعر الساعة المخفَّض لكامل الدوام
+        if (!OFFICIAL.includes(h) && h >= POL.minPromoHours &&
+            p.perChild > Math.floor(p.totalHours * POL.hourlyRate / POL.roundTo) * POL.roundTo) overHourly++;
+        for (const i of p.items) if (i.promo && i.url !== null) urlLeak++;
       }
     }
   }
 }
 eq('العرض: الباقات الرسمية ' + OFFICIAL.join('/') + ' بلا أي مساس (' + sweptP + ' حالة)', officialTouched, 0);
-eq('العرض: لا يتجاوز السعر المعلن أبداً', cheaperThanList, 0);
-eq('العرض: لا مبلغ صفري أو سالب', negative, 0);
-eq('العرض: التركيبة مطابقة للتركيبة المعتمدة', compositionChanged, 0);
-eq('العرض: الخصم الفعلي لا يقل عن ' + POL.off + '%', underOff, 0);
+eq('العرض: لا يتجاوز السعر المعلن أبداً', aboveList, 0);
+eq('العرض: لا مبلغ صفري أو سالب', nonPositive, 0);
+eq('العرض: الباقة بالطلب لا تتجاوز سعر الساعة المخفَّض', overHourly, 0);
 eq('العرض: لا رابط متجر على أي سعر عرض', urlLeak, 0);
 
 // إيقاف العرض يُعيد الأداة إلى السعر المعلن حرفياً
@@ -216,31 +232,23 @@ let offMismatch = 0;
 for (let h = 1; h <= 10; h++) {
   for (let dpw = 1; dpw <= 5; dpw++) {
     const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: 4, kids: 1 });
-    const p = promoQuote(DATA, Object.assign({}, PROMO, { active: false }), { hours: h, daysPerWeek: dpw, weeks: 4, kids: 1 });
-    if (p.net !== list.net || p.hasPromo) offMismatch++;
+    if (PQ(h, dpw, 4, 1, Object.assign({}, PROMO, { active: false })).net !== list.net) offMismatch++;
   }
 }
 eq('العرض: active=false يعيد السعر المعلن تماماً', offMismatch, 0);
 
-// الساعات المشمولة فعلاً = غير الرسمية التي تُرقَّى إلى باقة أعلى
-const promoHours = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(h =>
-  [1, 2, 3, 4, 5].some(d => promoQuote(DATA, PROMO, { hours: h, daysPerWeek: d, weeks: 4, kids: 1 }).hasPromo));
-// الساعتان تدخلان العرض عند كثرة الأيام: 2 ساعة × 5 أيام × شهر تُرقَّى لباقة 4 ساعات (650) لا للساعة (1000).
-ok('العرض: الساعات المشمولة 2 · 3 · 7 · 9 (كل ما يُرقَّى)', promoHours.join(',') === '2,3,7,9', promoHours.join(','));
-ok('العرض: لا شيء رسمي داخل القائمة', promoHours.every(h => !OFFICIAL.includes(h)));
-ok('العرض: الساعة الواحدة بالسعر المعلن دائماً (لا تُرقَّى أبداً)',
-  [1, 2, 3, 4, 5].every(d => [1, 4, 16, 32].every(w =>
-    !promoQuote(DATA, PROMO, { hours: 1, daysPerWeek: d, weeks: w, kids: 1 }).hasPromo)));
-ok('العرض: ساعتان × يومان × شهر بلا خصم (الحساب بالساعة لا ترقية)',
-  !promoQuote(DATA, PROMO, { hours: 2, daysPerWeek: 2, weeks: 4, kids: 1 }).hasPromo);
-eq('العرض: ساعتان × 5 أيام × شهر = 550 (تُرقَّى لباقة 4 ساعات)',
-  promoQuote(DATA, PROMO, { hours: 2, daysPerWeek: 5, weeks: 4, kids: 1 }).net, 550);
+// الساعات المشمولة = ما ليس له باقة معلنة، والساعة الواحدة مستثناة بسياسة minPromoHours
+ok('العرض: الباقات بالطلب هي ' + promoHoursList(DATA, POL).join(' · '),
+  promoHoursList(DATA, POL).join(',') === '2,3,7,9', promoHoursList(DATA, POL).join(','));
+ok('العرض: لا شيء رسمي داخل قائمة الطلب', promoHoursList(DATA, POL).every(h => !OFFICIAL.includes(h)));
+eq('العرض: الساعة الواحدة × يوم = السعر المعلن ' + CFG.hourly, PQ(1, 1, 1, 1).net, CFG.hourly);
 
 // سلامة سياسة العرض في الملف
+ok('سياسة العرض: سعر الساعة أقل من المعلن', POL.hourlyRate > 0 && POL.hourlyRate < CFG.hourly, String(POL.hourlyRate));
 ok('سياسة العرض: النسبة بين 1 و50%', POL.off > 0 && POL.off <= 50, String(POL.off));
-ok('سياسة العرض: التقريب من مضاعفات 5', POL.roundTo === 5 || POL.roundTo === 1 || POL.roundTo === 10);
-eq('سياسة العرض: 650 ← ' + discounted(650, POL), discounted(650, POL), 550);
-const badOverride = Object.keys((PROMO.overrides) || {}).filter(k => OFFICIAL.includes(Number(k.split('/')[0])));
+ok('سياسة العرض: التقريب من مضاعفات 5', [1, 5, 10].includes(POL.roundTo));
+eq('سياسة العرض: 650 مخصومة ' + POL.off + '% = 550', discounted(650, POL), 550);
+const badOverride = Object.keys(PROMO.overrides || {}).filter(k => OFFICIAL.includes(Number(k.split('/')[0])));
 eq('سياسة العرض: لا تجاوز يدوي على ساعات رسمية', badOverride.length, 0, badOverride.join(','));
 eq('خصم الأخوة في العرض هو نفسه', (PROMO.rules && PROMO.rules.siblingOff) ?? CFG.siblingOff, CFG.siblingOff);
 

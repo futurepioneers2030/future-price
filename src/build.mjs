@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'no
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaults, assumptionsLine, TIERS } from './calc.js';
-import { promoQuote, policy, officialHours } from './promo.js';
+import { promoQuote, policy, officialHours, promoHoursList } from './promo.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
@@ -81,19 +81,19 @@ const assumptionsCard = () => `<section class="rw-card rw-card--dashed" aria-lab
 
 const POL = policy(PROMO);
 const OFFICIAL = officialHours(DATA);
-// الساعات التي ينطبق عليها العرض فعلاً — تُستنتج من المحرك نفسه، لا تُكتب يدوياً.
-const PROMO_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(h =>
-  [1, 2, 3, 4, 5].some(d =>
-    promoQuote(DATA, PROMO, { hours: h, daysPerWeek: d, weeks: CFG.monthWeeks, kids: 1 }).hasPromo));
+const PROMO_HOURS = promoHoursList(DATA, POL);
 
 const promoRulesCard = () => `<section class="rw-card rw-card--dashed" aria-label="كيف يُحسب سعر العرض">
   <h2 class="rw-card__title">كيف يُحسب سعر العرض</h2>
   <ul class="rw-rules">
     <li><b>الباقات الرسمية (${OFFICIAL.join(' · ')} ساعات)</b> — بسعرها المعلن في دليل الأسعار، بلا أي تغيير.</li>
-    <li><b>الساعات غير الرسمية (${PROMO_HOURS.join(' · ')})</b> — تُحسب على أقرب باقة أعلى، ثم يُخصم ${POL.off}% ويُقرَّب${POL.roundMode === 'floor' ? ' لأسفل' : ''} لأقرب ${POL.roundTo} ريالات. فالخصم الفعلي ${POL.roundMode === 'floor' ? '≥ ' : '≈ '}${POL.off}%.</li>
-    <li><b>الحساب بالساعة (${CFG.hourly} ريال)</b> — سعر معلن رسمي ومقابل ما يُستخدَم بالضبط، فلا خصم عليه.</li>
+    <li><b>الساعة الواحدة</b> — بسعرها المعلن ${CFG.hourly} ريال، وهو سعر رئيسي في الدليل.</li>
+    <li><b>الباقات بالطلب (${PROMO_HOURS.join(' · ')} ساعات)</b> — بالأرخص من مسارين:
+      <br>‏١) كل ساعات الدوام × <b>${POL.hourlyRate} ريال للساعة</b> بدل ${CFG.hourly}،
+      <br>‏٢) أقرب باقة أعلى مخصومة <b>${POL.off}%</b> — سقف يمنع أن تصير الباقة بالطلب أغلى من الرسمية.</li>
+    <li><b>التقريب${POL.roundMode === 'floor' ? ' لأسفل' : ''} لأقرب ${POL.roundTo} ريالات</b> — فالسعر لا يزيد عن الحساب النظري أبداً.</li>
+    <li><b>ضمانة:</b> لا يدفع صاحب الساعات الأقل أكثر من صاحب الساعات الأكثر — إن كانت باقة ساعات أعلى أرخص، يُسعَّر عليها.</li>
     <li><b>خصم الأخوة ${CFG.siblingOff}%</b> من طفلين — يُطبَّق بعد ذلك كالمعتاد.</li>
-    <li>العرض <b>خصم على نفس التركيبة المعتمدة</b>، لا إعادة حساب — فلا ينقلب الاشتراك الشهري إلى اشتراكات يومية.</li>
   </ul>
   <p class="rw-prose">${esc('سعر العرض غير مرتبط بمنتج في المتجر — يُفعَّل عبر إدارة المركز.' + (PROMO.validUntil ? ' سريان العرض: ' + PROMO.validUntil + '.' : ''))}</p>
 </section>`;
@@ -278,6 +278,6 @@ console.log('بُنيت ' + out.length + ' ملفاً في site/:');
 out.forEach(f => console.log('  · ' + f));
 console.log('الشرائح الرسمية: ' + TIERS.join('، ') + ' ساعات · سعر الساعة ' + CFG.hourly + ' ريال');
 console.log(PROMO_ON
-  ? 'العرض المؤقت: خصم ' + POL.off + '% على الساعات ' + PROMO_HOURS.join('، ') +
-    ' (تقريب ' + (POL.roundMode === 'floor' ? 'لأسفل ' : '') + 'لأقرب ' + POL.roundTo + ')'
+  ? 'العرض المؤقت: الباقات بالطلب (' + PROMO_HOURS.join('، ') + ' ساعات) بسعر الساعة ' +
+    POL.hourlyRate + ' ريال، وسقف ' + POL.off + '% خصماً عن أقرب باقة أعلى'
   : 'العرض المؤقت: متوقف (active = false)');
