@@ -2,15 +2,20 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { quote, periodTable, bestUnit, defaults, TIERS, ar, coverDays, DAY_F } from './calc.js';
-import { promoQuote, policy, officialHours, promoHoursList, discounted } from './promo.js';
+import {
+  quote, periodTable, bestUnit, defaults, TIERS, ar, coverDays, DAY_F,
+  discountPolicy, flexRate, hasOfficialPackage, durationOf
+} from './calc.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
 const DATA = JSON.parse(readFileSync(join(ROOT, 'data', 'packages.json'), 'utf8'));
-const PROMO = JSON.parse(readFileSync(join(ROOT, 'data', 'promo.json'), 'utf8'));
+const DISCOUNT = JSON.parse(readFileSync(join(ROOT, 'data', 'discount.json'), 'utf8'));
+DATA.discount = DISCOUNT;
 const CFG = defaults(DATA);
-const POL = policy(PROMO);
+const POL = discountPolicy(DATA);
+const RATE = flexRate(DATA, POL);
+const OFFICIAL = DATA.periods.morning.packages.map(p => p.hours);
 
 let pass = 0; const fails = [];
 const ok = (name, cond, extra) => { if (cond) pass++; else fails.push(name + (extra ? ' → ' + extra : '')); };
@@ -71,8 +76,9 @@ for (const period of ['morning', 'evening']) {
     for (let dpw = 1; dpw <= 5; dpw++) {
       for (const w of [1, 2, 3, 4, 6, 8]) {
         const q = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: w, kids: 1, period });
+        // المقارنة على السعر المعلن (قبل خصم الدوام المرن) — فهو ناتج البرمجة الديناميكية.
         const b = brute(q.units.map(u => ({ days: u.days, cost: u.cost })), q.totalDays);
-        if (q.perChild !== b) fails.push(`البحث الشامل يخالف المحرك عند h=${h} d=${dpw} w=${w} (${q.perChild} ≠ ${b})`);
+        if (q.listPerChild !== b) fails.push(`البحث الشامل يخالف المحرك عند h=${h} d=${dpw} w=${w} (${q.listPerChild} ≠ ${b})`);
         bruteChecked++;
       }
     }
@@ -98,6 +104,8 @@ for (const period of ['morning', 'evening']) {
           const q = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: w, kids, period });
           swept++;
           for (const it of q.items) {
+            // العنصر المرن سعرٌ لا يقابله منتج، ويُفحص في قسم الخصم أدناه.
+            if (it.flex) { if (it.url !== null || !it.title.startsWith('اشتراك مرن')) nameBad++; continue; }
             if (!URLS.has(it.url)) urlBad++;
             if (it.tier === null && it.title !== 'اشتراك بالساعة' && !it.title.startsWith('اشتراك بالساعة ×')) nameBad++;
             if (it.tier !== null && it.tier < h) nameBad++;
@@ -160,7 +168,7 @@ function codeOnly(src) {
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
     .replace(/const MS = \{[^}]*\};/, ''); // توقيتات المحادثة، لا أسعار
 }
-for (const f of ['chat.js', 'chat-main.js', 'chat-promo.js', 'promo.js', 'counters.js', 'build.mjs', 'ui.js']) {
+for (const f of ['chat.js', 'chat-main.js', 'counters.js', 'build.mjs', 'ui.js']) {
   const src = codeOnly(readFileSync(join(ROOT, 'src', f), 'utf8'));
   const hits = PRICE_LITERALS.filter(n => new RegExp('(?<![\\d.])' + n + '(?![\\d.])').test(src));
   eq('لا أسعار مكتوبة في src/' + f, hits.length, 0, hits.join(','));
@@ -168,93 +176,9 @@ for (const f of ['chat.js', 'chat-main.js', 'chat-promo.js', 'promo.js', 'counte
 ok('توقيتات المحادثة 650/700/850 كما في كراسة التسليم',
   /const MS = \{ intro: 650, step: 700, result: 850/.test(readFileSync(join(ROOT, 'src', 'chat.js'), 'utf8')));
 
-/* ——————— 6) العرض التحفيزي المؤقت — الباقات بالطلب ——————— */
-
-const OFFICIAL = officialHours(DATA);
-const PQ = (h, d, w, k, pr) => promoQuote(DATA, pr || PROMO, { hours: h, daysPerWeek: d, weeks: w, kids: k || 1 });
-
-// المثال الذي أكّده العميل: 3 ساعات × 3 أيام × شهر = 36 ساعة × 15.29 ← 550.
-const p1 = PQ(3, 3, CFG.monthWeeks, 1);
-eq('العرض: 3 ساعات × 3 أيام × شهر = 550', p1.net, 550);
-eq('العرض: السعر المعلن لنفس الدوام 650', p1.listNet, 650);
-ok('العرض: سعر الساعة الفعلي ≈ ' + POL.hourlyRate, p1.effectiveHourly <= POL.hourlyRate && p1.effectiveHourly > POL.hourlyRate - 0.5, String(p1.effectiveHourly));
-
-// الخلل الذي رصده العميل: ساعتان كانتا أغلى من 3 ساعات لنفس الدوام.
-const p2 = PQ(2, 3, CFG.monthWeeks, 1);
-ok('العرض: ساعتان × 3 أيام × شهر أقل من 3 ساعات', p2.net < p1.net, p2.net + ' مقابل ' + p1.net);
-eq('العرض: ساعتان × 3 أيام × شهر = 24 ساعة × ' + POL.hourlyRate, p2.net, Math.floor(24 * POL.hourlyRate / POL.roundTo) * POL.roundTo);
-
-// ——— الضمانة الحاكمة: لا يدفع صاحب الساعات الأقل أكثر ———
-let notMonotonic = 0, monoChecked = 0;
-const worst = [];
-for (let dpw = 1; dpw <= 5; dpw++) {
-  for (let w = 1; w <= CFG.maxWeeks; w++) {
-    for (const kids of [1, 2, 3, 4]) {
-      let prev = -1;
-      for (let h = 1; h <= 10; h++) {
-        const n = PQ(h, dpw, w, kids).net;
-        if (n < prev) { notMonotonic++; if (worst.length < 3) worst.push(`d=${dpw} w=${w} k=${kids} h=${h}: ${n} < ${prev}`); }
-        prev = n; monoChecked++;
-      }
-    }
-  }
-}
-eq('العرض: السعر لا ينقص أبداً كلما زادت الساعات (' + monoChecked + ' حالة)', notMonotonic, 0, worst.join(' · '));
-
-// ——— ثوابت أخرى على كامل الفضاء ———
-let officialTouched = 0, aboveList = 0, urlLeak = 0, nonPositive = 0, overHourly = 0, sweptP = 0;
-for (let h = 1; h <= 10; h++) {
-  for (let dpw = 1; dpw <= 5; dpw++) {
-    for (const w of [1, 2, 4, 8, 16, 32]) {
-      for (const kids of [1, 2, 4]) {
-        const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: w, kids });
-        const p = PQ(h, dpw, w, kids);
-        sweptP++;
-        if (OFFICIAL.includes(h) && p.net !== list.net) officialTouched++;
-        if (p.net > list.net) aboveList++;
-        if (p.net <= 0) nonPositive++;
-        // الباقة بالطلب لا تتجاوز أبداً سعر الساعة المخفَّض لكامل الدوام
-        if (!OFFICIAL.includes(h) && h >= POL.minPromoHours &&
-            p.perChild > Math.floor(p.totalHours * POL.hourlyRate / POL.roundTo) * POL.roundTo) overHourly++;
-        for (const i of p.items) if (i.promo && i.url !== null) urlLeak++;
-      }
-    }
-  }
-}
-eq('العرض: الباقات الرسمية ' + OFFICIAL.join('/') + ' بلا أي مساس (' + sweptP + ' حالة)', officialTouched, 0);
-eq('العرض: لا يتجاوز السعر المعلن أبداً', aboveList, 0);
-eq('العرض: لا مبلغ صفري أو سالب', nonPositive, 0);
-eq('العرض: الباقة بالطلب لا تتجاوز سعر الساعة المخفَّض', overHourly, 0);
-eq('العرض: لا رابط متجر على أي سعر عرض', urlLeak, 0);
-
-// إيقاف العرض يُعيد الأداة إلى السعر المعلن حرفياً
-let offMismatch = 0;
-for (let h = 1; h <= 10; h++) {
-  for (let dpw = 1; dpw <= 5; dpw++) {
-    const list = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: 4, kids: 1 });
-    if (PQ(h, dpw, 4, 1, Object.assign({}, PROMO, { active: false })).net !== list.net) offMismatch++;
-  }
-}
-eq('العرض: active=false يعيد السعر المعلن تماماً', offMismatch, 0);
-
-// الساعات المشمولة = ما ليس له باقة معلنة، والساعة الواحدة مستثناة بسياسة minPromoHours
-ok('العرض: الباقات بالطلب هي ' + promoHoursList(DATA, POL).join(' · '),
-  promoHoursList(DATA, POL).join(',') === '2,3,7,9', promoHoursList(DATA, POL).join(','));
-ok('العرض: لا شيء رسمي داخل قائمة الطلب', promoHoursList(DATA, POL).every(h => !OFFICIAL.includes(h)));
-eq('العرض: الساعة الواحدة × يوم = السعر المعلن ' + CFG.hourly, PQ(1, 1, 1, 1).net, CFG.hourly);
-
-// سلامة سياسة العرض في الملف
-ok('سياسة العرض: سعر الساعة أقل من المعلن', POL.hourlyRate > 0 && POL.hourlyRate < CFG.hourly, String(POL.hourlyRate));
-ok('سياسة العرض: النسبة بين 1 و50%', POL.off > 0 && POL.off <= 50, String(POL.off));
-ok('سياسة العرض: التقريب من مضاعفات 5', [1, 5, 10].includes(POL.roundTo));
-eq('سياسة العرض: 650 مخصومة ' + POL.off + '% = 550', discounted(650, POL), 550);
-const badOverride = Object.keys(PROMO.overrides || {}).filter(k => OFFICIAL.includes(Number(k.split('/')[0])));
-eq('سياسة العرض: لا تجاوز يدوي على ساعات رسمية', badOverride.length, 0, badOverride.join(','));
-eq('خصم الأخوة في العرض هو نفسه', (PROMO.rules && PROMO.rules.siblingOff) ?? CFG.siblingOff, CFG.siblingOff);
-
 /* ——————— 7) المخرجات المبنية ——————— */
 
-const PAGES = ['index.html', 'promo/index.html', 'table/index.html', 'parents/index.html', 'embed/index.html', '404.html'];
+const PAGES = ['index.html', 'table/index.html', 'parents/index.html', 'embed/index.html', '404.html'];
 ok('مجلد site/ موجود', existsSync(SITE));
 for (const rel of PAGES) {
   if (!existsSync(join(SITE, rel))) { fails.push('ملف مفقود: site/' + rel); continue; }
@@ -269,16 +193,6 @@ for (const rel of PAGES) {
   ok(rel + ': JSON المضمّن صالح', !!json && JSON.parse(json[1].replace(/\\u003c/g, '<')).hourlyRate === DATA.hourlyRate);
 }
 
-const promoPage = read('promo/index.html');
-ok('صفحة العرض: بيانات العرض مطبوعة وقت البناء', promoPage.includes('id="rw-promo-data"'));
-ok('صفحة العرض: بلا أزرار شراء', !promoPage.includes('class="rw-buy"'));
-ok('صفحة العرض: بلا اختيار فترة', !promoPage.includes('rw-seg__btn'));
-ok('صفحة العرض: بطاقة شرح قاعدة الخصم', promoPage.includes('كيف يُحسب سعر العرض') && promoPage.includes(POL.off + '%'));
-ok('صفحة العرض: تذكر الباقات الرسمية صراحةً', promoPage.includes(OFFICIAL.join(' · ') + ' ساعات'));
-ok('صفحة العرض: رابط رجوع للحاسبة الرسمية', /href="\/"/.test(promoPage));
-ok('صفحة العرض: JSON العرض صالح',
-  JSON.parse((promoPage.match(/<script type="application\/json" id="rw-promo-data">([\s\S]*?)<\/script>/) || [, '{}'])[1].replace(/\\u003c/g, '<')).off === POL.off);
-
 /* ——— المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم ——— */
 const chatSrc = readFileSync(join(ROOT, 'src', 'chat.js'), 'utf8');
 ok('خطوة المدة: لا زر «شهران»', !/qbtn\('شهران'/.test(chatSrc) && !read('index.html').includes('>شهران<'));
@@ -288,36 +202,104 @@ ok('خطوة المدة: أسبوع · شهر · ترم فقط',
 
 /* ——— جدول المقارنة الكامل ——— */
 const tbl = read('table/index.html');
-const DURS = [{ w: 1, n: 'أسبوع' }, { w: CFG.monthWeeks, n: 'شهر' }, { w: CFG.termWeeks, n: 'ترم' }];
+const DURS = [{ w: 1, n: 'أسبوع', k: 'week' }, { w: CFG.monthWeeks, n: 'شهر', k: 'month' }, { w: CFG.termWeeks, n: 'ترم', k: 'term' }];
 eq('جدول المقارنة: 15 جدولاً (3 مدد × 5 أيام)', (tbl.match(/class="rw-mx"/g) || []).length, 15);
 ok('جدول المقارنة: بلا خيار شهران', !tbl.includes('شهران'));
-ok('جدول المقارنة: يشرح مصدر كل عمود', tbl.includes('كيف تقرأ الجدول') && tbl.includes(String(POL.hourlyRate)));
-ok('جدول المقارنة: مربوط من الصفحة الرئيسية', read('index.html').includes('href="/table/"'));
+ok('جدول المقارنة: يشرح مصدر كل عمود', tbl.includes('كيف تقرأ الجدول') && tbl.includes(String(RATE)));
+ok('جدول المقارنة: عمود «بعد الخصم»', tbl.includes('بعد الخصم'));
 
 // كل خلية في الصفحة مطابقة للمحرك — مسح كامل على 150 خلية
-let cellBad = 0, cells = 0, promoCells = 0;
+let cellBad = 0, cells = 0, flexCells = 0;
 for (const d of DURS) {
   for (let dpw = 1; dpw <= 5; dpw++) {
     const block = tbl.split('<figure class="rw-mx">').find(b =>
       b.includes('<b>' + d.n + '</b> · ' + ar(dpw, DAY_F) + ' أسبوعياً') && b.includes(coverDays(dpw * d.w)));
     if (!block) { fails.push('جدول مفقود: ' + d.n + ' · ' + dpw + ' أيام'); continue; }
     for (let h = 1; h <= 10; h++) {
-      const l = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: d.w, kids: 1 });
-      const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: d.w, kids: 1 });
+      const q = quote(DATA, { hours: h, daysPerWeek: dpw, weeks: d.w, duration: d.k, kids: 1 });
       const row = (block.match(new RegExp('<td>' + h + '</td>[\\s\\S]*?</tr>')) || [''])[0];
       cells++;
-      const wantList = '<td>' + l.net + '</td>';
-      const wantPromo = p.net < l.net ? '<td>' + p.net + '</td>' : '<span class="same">';
-      if (!row.includes(wantList) || !row.includes(wantPromo)) cellBad++;
-      if (p.net < l.net) promoCells++;
+      const wantList = '<td>' + q.listPerChild + '</td>';
+      const wantNet = q.flex ? '<td>' + q.perChild + '</td>' : '<span class="same">';
+      if (!row.includes(wantList) || !row.includes(wantNet)) cellBad++;
+      if (q.flex) flexCells++;
     }
   }
 }
 eq('جدول المقارنة: كل خلية مطابقة للمحرك (' + cells + ' خلية)', cellBad, 0);
-ok('جدول المقارنة: فيه خلايا عرض فعلية (' + promoCells + ')', promoCells > 0);
+ok('جدول المقارنة: فيه خلايا مخصومة فعلاً (' + flexCells + ')', flexCells > 0);
 
 const idx = read('index.html');
-ok('الصفحة الرئيسية: رابط ظاهر لحاسبة العرض المؤقت', idx.includes('href="/promo/"') && idx.includes('حاسبة العرض المؤقت'));
+ok('الصفحة الرئيسية: بلا رابط لصفحة العروض المحذوفة', !idx.includes('/promo/'));
+ok('الصفحة الرئيسية: بلا حبّة «جدول الأسعار الكامل»', !idx.includes('جدول الأسعار الكامل ↗'));
+ok('الصفحة الرئيسية: بلا حبّة «نسخة الأهالي»', !idx.includes('نسخة الأهالي مع روابط الشراء ↗'));
+ok('صفحة /promo/ محذوفة', !existsSync(join(SITE, 'promo')));
+
+/* ——— خصم الدوام المرن في قاعدة الأسعار الرئيسية ——— */
+
+const Q = (h, d, w, k, dur) => quote(DATA, { hours: h, daysPerWeek: d, weeks: w, kids: k || 1, duration: dur });
+
+eq('سعر الساعة بعد الخصم = ' + RATE, RATE, Math.round(CFG.hourly * (1 - POL.hourlyOff / 100) * 100) / 100);
+eq('الخصم: ساعتان × 4 أيام × شهر = 520 (بدل 650)', Q(2, 4, CFG.monthWeeks, 1).net, 520);
+eq('الخصم: نفس المثال بالأسعار المعلنة 650', Q(2, 4, CFG.monthWeeks, 1).listPerChild, 650);
+eq('الخصم: ساعتان × 3 أيام × شهر = 390 (بدل 600)', Q(2, 3, CFG.monthWeeks, 1).net, 390);
+eq('الخصم: 3 ساعات × 3 أيام × شهر = 585 (بدل 650)', Q(3, 3, CFG.monthWeeks, 1).net, 585);
+ok('الخصم: سعر الساعة الفعلي = ' + RATE + ' في المثال', Q(2, 4, CFG.monthWeeks, 1).net / 32 === RATE);
+ok('الخصم: العنصر المرن بلا رابط متجر', Q(2, 4, CFG.monthWeeks, 1).items.every(i => !i.flex || i.url === null));
+
+let officialTouched = 0, aboveList = 0, weekTermTouched = 0, oneHourTouched = 0, flexUrl = 0, notMono = 0, sweptD = 0;
+for (let h = 1; h <= 10; h++) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    for (const d of [{ w: 1, k: 'week' }, { w: CFG.monthWeeks, k: 'month' }, { w: CFG.termWeeks, k: 'term' }]) {
+      for (const kids of [1, 2, 4]) {
+        const q = Q(h, dpw, d.w, kids, d.k);
+        sweptD++;
+        if (OFFICIAL.includes(h) && q.flex) officialTouched++;
+        if (h === 1 && q.flex) oneHourTouched++;
+        if (!POL.durations.includes(d.k) && q.flex) weekTermTouched++;
+        if (q.perChild > q.listPerChild) aboveList++;
+        for (const i of q.items) if (i.flex && i.url !== null) flexUrl++;
+      }
+    }
+  }
+}
+eq('الخصم: الباقات المعلنة ' + OFFICIAL.join('/') + ' بلا أي مساس (' + sweptD + ' حالة)', officialTouched, 0);
+eq('الخصم: الساعة الواحدة بلا مساس', oneHourTouched, 0);
+eq('الخصم: مقصور على ' + POL.durations.join('/'), weekTermTouched, 0);
+eq('الخصم: لا يتجاوز السعر المعلن أبداً', aboveList, 0);
+eq('الخصم: لا رابط متجر على أي سعر مرن', flexUrl, 0);
+
+// الرتابة: لا يدفع صاحب الساعات الأقل أكثر
+for (let dpw = 1; dpw <= 5; dpw++) {
+  for (const d of [{ w: 1, k: 'week' }, { w: CFG.monthWeeks, k: 'month' }, { w: CFG.termWeeks, k: 'term' }]) {
+    for (const kids of [1, 2, 4]) {
+      let prev = -1;
+      for (let h = 1; h <= 10; h++) {
+        const n = Q(h, dpw, d.w, kids, d.k).net;
+        if (n < prev) notMono++;
+        prev = n;
+      }
+    }
+  }
+}
+eq('الخصم: السعر لا ينقص كلما زادت الساعات', notMono, 0);
+
+// إيقاف الخصم يعيد كل شيء إلى السعر المعلن
+let offMismatch = 0;
+const OFFDATA = Object.assign({}, DATA, { discount: Object.assign({}, DISCOUNT, { active: false }) });
+for (let h = 1; h <= 10; h++) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    const a = quote(OFFDATA, { hours: h, daysPerWeek: dpw, weeks: CFG.monthWeeks, kids: 1, duration: 'month' });
+    if (a.flex || a.net !== a.listPerChild) offMismatch++;
+  }
+}
+eq('الخصم: active=false يعيد الأسعار المعلنة', offMismatch, 0);
+
+ok('سياسة الخصم: النسبة بين 1 و60%', POL.hourlyOff > 0 && POL.hourlyOff <= 60, String(POL.hourlyOff));
+ok('سياسة الخصم: الساعات المشمولة 2 · 3 · 7 · 9',
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter(h => h >= POL.minHours && !hasOfficialPackage(DATA, h)).join(',') === '2,3,7,9');
+eq('durationOf يميّز الشهر', durationOf(CFG.monthWeeks, CFG), 'month');
+ok('بطاقة شرح الخصم في الأداة الداخلية', idx.includes(POL.label) && idx.includes(String(RATE)));
 ok('الأداة الداخلية: بلا أزرار شراء', !idx.includes('class="rw-buy"'));
 ok('الأداة الداخلية: بلا اختيار فترة', !idx.includes('rw-seg__btn'));
 ok('الأداة الداخلية: تنبيه تطابق الفترتين', idx.includes('الأسعار متطابقة في الفترتين'));
@@ -348,7 +330,7 @@ ok('كل الألوان من رموز التصميم', !/#(?!D60859|941249|5E0B3
 ok('احترام تقليل الحركة', css.includes('prefers-reduced-motion'));
 ok('مؤشر تركيز ظاهر', css.includes(':focus-visible'));
 
-for (const f of ['calc.js', 'promo.js', 'ui.js', 'chat.js', 'chat-main.js', 'chat-promo.js', 'counters.js']) {
+for (const f of ['calc.js', 'ui.js', 'chat.js', 'chat-main.js', 'counters.js']) {
   ok('assets/' + f + ' منسوخ', existsSync(join(SITE, 'assets', f)));
 }
 

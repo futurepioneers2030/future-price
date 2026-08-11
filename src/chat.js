@@ -1,6 +1,5 @@
 // هيكل الحاسبة بصيغة محادثة — سؤال واحد في كل خطوة، ورجوع في كل خطوة.
-// يستعمله مدخلان: chat-main.js (الأسعار المعلنة) و chat-promo.js (العرض المؤقت).
-// المنطق الحسابي ليس هنا: كل مدخل يمرّر دالة result(state) تعيد نموذج بطاقة النتيجة.
+// المنطق الحسابي ليس هنا: المدخل (chat-main.js) يمرّر دالة result(state) تعيد نموذج بطاقة النتيجة.
 import { defaults, ar, HOUR_F, DAY_F, KID_F } from './calc.js';
 import { el, money, clear } from './ui.js';
 
@@ -15,7 +14,7 @@ export function startChat(opts) {
 
   const S = {
     msgs: [{ who: 'g', text: INTRO }],
-    typing: false, stage: 'hours', hours: null, days: null, weeks: null, kids: 1, history: []
+    typing: false, stage: 'hours', hours: null, days: null, weeks: null, duration: null, kids: 1, history: []
   };
 
   const timers = [];
@@ -58,9 +57,11 @@ export function startChat(opts) {
     });
   }
 
-  function answer(field, value, label, next, question) {
+  function answer(field, value, label, next, question, extra) {
     stopTimers();
-    S.history.push({ stage: S.stage, hours: S.hours, days: S.days, weeks: S.weeks, kids: S.kids, msgsLen: S.msgs.length });
+    // اللقطة تُؤخذ قبل أي تغيير، وإلا لأعاد الرجوع القيمة الجديدة لا القديمة.
+    S.history.push({ stage: S.stage, hours: S.hours, days: S.days, weeks: S.weeks, duration: S.duration, kids: S.kids, msgsLen: S.msgs.length });
+    if (extra) Object.assign(S, extra);
     S[field] = value;
     S.stage = next;
     S.typing = false;
@@ -76,19 +77,19 @@ export function startChat(opts) {
     const p = S.history.pop();
     S.msgs.length = p.msgsLen;
     S.typing = false;
-    S.stage = p.stage; S.hours = p.hours; S.days = p.days; S.weeks = p.weeks; S.kids = p.kids;
+    S.stage = p.stage; S.hours = p.hours; S.days = p.days; S.weeks = p.weeks; S.duration = p.duration; S.kids = p.kids;
     render();
   }
 
   function reset() {
     stopTimers();
     S.msgs = [{ who: 'g', text: opts.resetIntro || 'نبدأ من جديد. كم ساعة يبقى الطفل في المركز يومياً؟' }];
-    S.typing = false; S.stage = 'hours'; S.hours = null; S.days = null; S.weeks = null; S.kids = 1; S.history = [];
+    S.typing = false; S.stage = 'hours'; S.hours = null; S.days = null; S.weeks = null; S.duration = null; S.kids = 1; S.history = [];
     render();
   }
 
   function finish() {
-    const model = opts.result({ hours: S.hours, daysPerWeek: S.days, weeks: S.weeks, kids: S.kids });
+    const model = opts.result({ hours: S.hours, daysPerWeek: S.days, weeks: S.weeks, duration: S.duration, kids: S.kids });
     say(model.lead || 'هذا هو السعر العادل:', MS.result, { card: model });
   }
 
@@ -156,10 +157,12 @@ export function startChat(opts) {
     } else if (S.stage === 'weeks') {
       // المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم — لا «شهران».
       step = 'الخطوة 3 من 4 — المدة'; label = 'مدة الاشتراك:'; cols = 3;
+      const pickWeeks = (w, key, text) => () =>
+        answer('weeks', w, text, 'kids', 'وكم عدد الأطفال؟', { duration: key });
       btns = [
-        qbtn('أسبوع', 'أسبوع واحد', null, () => answer('weeks', 1, 'أسبوع', 'kids', 'وكم عدد الأطفال؟')),
-        qbtn('شهر', CFG.monthWeeks + ' أسابيع', null, () => answer('weeks', CFG.monthWeeks, 'شهر', 'kids', 'وكم عدد الأطفال؟')),
-        qbtn('ترم كامل', CFG.termWeeks + ' أسبوعاً', 'gold', () => answer('weeks', CFG.termWeeks, 'ترم كامل', 'kids', 'وكم عدد الأطفال؟'))
+        qbtn('أسبوع', 'أسبوع واحد', null, pickWeeks(1, 'week', 'أسبوع')),
+        qbtn('شهر', CFG.monthWeeks + ' أسابيع', null, pickWeeks(CFG.monthWeeks, 'month', 'شهر')),
+        qbtn('ترم كامل', CFG.termWeeks + ' أسبوعاً', 'gold', pickWeeks(CFG.termWeeks, 'term', 'ترم كامل'))
       ];
     } else if (S.stage === 'kids') {
       step = 'الخطوة 4 من 4 — الأطفال'; label = 'عدد الأطفال:'; cols = 4;

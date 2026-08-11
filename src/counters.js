@@ -7,6 +7,14 @@ const CFG = defaults(DATA);
 const ROOT = document.getElementById('rw-calc');
 const EMBED = document.body.classList.contains('rw-embed');
 
+// المدد المعتمدة ثلاث فقط: أسبوع · شهر · ترم.
+const DURATIONS = [
+  { key: 'week', label: 'أسبوع', weeks: 1, sub: 'أسبوع واحد' },
+  { key: 'month', label: 'شهر', weeks: CFG.monthWeeks, sub: CFG.monthWeeks + ' أسابيع' },
+  { key: 'term', label: 'ترم', weeks: CFG.termWeeks, sub: CFG.termWeeks + ' أسبوعاً' }
+];
+const durOf = key => DURATIONS.find(d => d.key === key) || DURATIONS[1];
+
 const S = readUrl();
 
 function readUrl() {
@@ -15,7 +23,7 @@ function readUrl() {
   return {
     hours: n('h', 6, 1, 10),
     days: n('d', 5, 1, CFG.weekDays),
-    weeks: n('w', CFG.monthWeeks, 1, CFG.maxWeeks),
+    duration: DURATIONS.some(d => d.key === p.get('t')) ? p.get('t') : 'month',
     kids: n('k', 1, 1, CFG.maxKids),
     period: p.get('p') === 'e' ? 'evening' : 'morning'
   };
@@ -23,7 +31,7 @@ function readUrl() {
 
 function writeUrl() {
   const q = new URLSearchParams({
-    h: S.hours, d: S.days, w: S.weeks, k: S.kids, p: S.period === 'evening' ? 'e' : 'm'
+    h: S.hours, d: S.days, t: S.duration, k: S.kids, p: S.period === 'evening' ? 'e' : 'm'
   });
   history.replaceState(null, '', location.pathname + '?' + q.toString());
 }
@@ -54,12 +62,20 @@ function inputsCard() {
     type: 'button', class: 'rw-seg__btn', 'aria-pressed': String(S.period === key),
     onclick: () => { S.period = key; render(); }
   }, label);
+  const durBtn = d => el('button', {
+    type: 'button', class: 'rw-seg__btn rw-seg__btn--stack', 'aria-pressed': String(S.duration === d.key),
+    onclick: () => { S.duration = d.key; render(); }
+  }, el('span', {}, d.label), el('small', {}, d.sub));
 
   return el('section', { class: 'rw-card', 'aria-label': 'مدخلات الحاسبة' },
     el('div', { class: 'rw-inputs' },
       stepper({ field: 'hours', label: 'ساعات الدوام في اليوم', hint: 'من ساعة إلى 10 ساعات', unit: ar(S.hours, HOUR_F).replace(/^\d+\s/, ''), lo: 1, hi: 10 }),
       stepper({ field: 'days', label: 'أيام الدوام في الأسبوع', hint: 'من يوم إلى ' + CFG.weekDays + ' أيام', unit: ar(S.days, DAY_F).replace(/^\d+\s/, ''), lo: 1, hi: CFG.weekDays }),
-      stepper({ field: 'weeks', label: 'عدد أسابيع الاشتراك', hint: 'الشهر = ' + CFG.monthWeeks + ' أسابيع · الترم = ' + CFG.termWeeks + ' أسبوعاً', unit: S.weeks === 1 ? 'أسبوع' : (S.weeks === 2 ? 'أسبوعان' : 'أسابيع'), lo: 1, hi: CFG.maxWeeks }),
+      el('div', { class: 'rw-step' },
+        el('div', { class: 'rw-step__top' },
+          el('div', { class: 'rw-step__label' }, 'مدة الاشتراك'),
+          el('div', { class: 'rw-step__hint' }, 'أسبوع · شهر · ترم')),
+        el('div', { class: 'rw-seg', role: 'group', 'aria-label': 'مدة الاشتراك' }, DURATIONS.map(durBtn))),
       stepper({ field: 'kids', label: 'عدد الأطفال', hint: 'خصم الأخوة ' + CFG.siblingOff + '% من طفلين', unit: ar(S.kids, KID_F).replace(/^\d+\s/, ''), lo: 1, hi: CFG.maxKids }),
       el('div', { class: 'rw-step' },
         el('div', { class: 'rw-step__label' }, 'الفترة'),
@@ -74,10 +90,11 @@ function resultCard(q) {
     el('div', { class: 'rw-pill' }, q.labels.perDay),
     el('div', { class: 'rw-pill' }, q.labels.perHour)
   ];
+  if (q.flex) pills.push(el('div', { class: 'rw-pill rw-pill--gold' }, q.labels.flexSaving));
   if (q.saving > 0) pills.push(el('div', { class: 'rw-pill rw-pill--solid' }, q.labels.saving));
 
   return el('section', { class: 'rw-result', 'aria-live': 'polite', 'aria-label': 'النتيجة' },
-    el('div', { class: 'rw-badge' }, 'السعر العادل لاشتراكك'),
+    el('div', { class: 'rw-badge' }, q.flex ? 'سعرك بعد خصم الدوام المرن' : 'السعر العادل لاشتراكك'),
     el('div', { class: 'rw-amount' }, String(q.net), ' ', el('small', {}, 'ريال')),
     el('div', { class: 'rw-summary' },
       q.period.label + ' · ' + q.labels.hours + ' يومياً · ' + q.labels.days + ' أسبوعياً · ' +
@@ -92,18 +109,24 @@ function basketCard(q) {
   return el('section', { class: 'rw-card', 'aria-label': 'كيف حسبنا السعر' },
     el('h2', { class: 'rw-card__title' }, 'كيف حسبنا السعر'),
     el('div', { class: 'rw-card__note' }, 'اخترنا لك: ' + q.labels.chosen),
-    el('div', { class: 'rw-card__hint' }, q.upgraded
-      ? 'لا توجد باقة ' + q.hours + ' ساعات — الحساب على أقرب باقة أعلى: ' + q.upTier + ' ساعات'
-      : 'باقة ' + q.hours + ' ساعات متاحة مباشرة'),
+    el('div', { class: 'rw-card__hint' }, q.flex
+      ? 'لا توجد باقة ' + q.hours + ' ساعات — اشتراك مرن بسعر ساعة ' + q.flexRate + ' ريال بدل ' + q.cfg.hourly
+      : (q.upgraded
+        ? 'لا توجد باقة ' + q.hours + ' ساعات — الحساب على أقرب باقة أعلى: ' + q.upTier + ' ساعات'
+        : 'باقة ' + q.hours + ' ساعات متاحة مباشرة')),
     el('div', { class: 'rw-basket' }, q.items.map(i =>
-      el('div', { class: 'rw-item' },
+      el('div', { class: 'rw-item' + (i.flex ? ' rw-item--flex' : '') },
         el('div', { class: 'rw-item__top' },
           el('div', { class: 'rw-item__text' },
             el('div', { class: 'rw-item__title' }, i.title),
             el('div', { class: 'rw-item__detail' }, i.detail)),
           el('div', { class: 'rw-item__side' }, money(i.sum),
-            el('a', { class: 'rw-buy', href: i.url, target: '_blank', rel: 'noopener' },
-              'اشترك', el('span', { class: 'rw-sr' }, ' في ' + i.title))))))),
+            // السعر المرن غير موجود كمنتج في المتجر، فلا رابط شراء له — يُطلب من الإدارة.
+            i.url
+              ? el('a', { class: 'rw-buy', href: i.url, target: '_blank', rel: 'noopener' },
+                'اشترك', el('span', { class: 'rw-sr' }, ' في ' + i.title))
+              : el('a', { class: 'rw-buy rw-buy--wa', href: DATA.contact.whatsapp, target: '_blank', rel: 'noopener' },
+                'اطلب عبر واتساب')))))),
     el('div', { class: 'rw-total' },
       el('div', { class: 'rw-total__label' }, q.kids > 1 ? 'الإجمالي لكل طفل' : 'الإجمالي'),
       el('div', { class: 'rw-total__sum' }, String(q.perChild), ' ', el('small', {}, 'ريال')))
@@ -124,7 +147,11 @@ function compareCard(q) {
 }
 
 function render() {
-  const q = quote(DATA, { hours: S.hours, daysPerWeek: S.days, weeks: S.weeks, kids: S.kids, period: S.period });
+  const dur = durOf(S.duration);
+  const q = quote(DATA, {
+    hours: S.hours, daysPerWeek: S.days, weeks: dur.weeks,
+    duration: dur.key, kids: S.kids, period: S.period
+  });
   writeUrl();
   clear(ROOT);
   ROOT.appendChild(inputsCard());

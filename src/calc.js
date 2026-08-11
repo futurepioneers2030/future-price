@@ -91,9 +91,43 @@ export function solve(units, totalDays) {
   return { total: totalDays > 0 ? cost[totalDays] : 0, counts };
 }
 
+/* ——— خصم الدوام المرن ——— */
+
+/** سياسة الخصم، مصدرها data/discount.json المدموج في البيانات وقت البناء. */
+export function discountPolicy(data) {
+  const d = (data && data.discount) || {};
+  return {
+    active: d.active !== false,
+    hourlyOff: d.hourlyOff ?? 35,
+    minHours: d.minHours ?? 2,
+    durations: d.durations || ['month'],
+    roundTo: d.roundTo ?? 5,
+    label: d.label || 'خصم الدوام المرن'
+  };
+}
+
+/** سعر الساعة بعد الخصم — يُشتق من hourlyRate المعلن، لا يُكتب. */
+export function flexRate(data, pol) {
+  const base = (data && data.hourlyRate) ?? 25;
+  return Math.round(base * (1 - pol.hourlyOff / 100) * 100) / 100;
+}
+
+/** هل لهذه الساعات باقة معلنة؟ */
+export function hasOfficialPackage(data, h) {
+  return data.periods.morning.packages.some(p => p.hours === h);
+}
+
+/** المدة المطلوبة من عدد الأسابيع. */
+export function durationOf(weeks, cfg) {
+  if (weeks === 1) return 'week';
+  if (weeks === cfg.monthWeeks) return 'month';
+  if (weeks === cfg.termWeeks) return 'term';
+  return 'custom';
+}
+
 /**
  * التسعيرة الكاملة.
- * input: { hours, daysPerWeek, weeks, kids, period }
+ * input: { hours, daysPerWeek, weeks, kids, period, duration }
  */
 export function quote(data, input) {
   const cfg = Object.assign(defaults(data), input.cfg || {});
@@ -114,18 +148,44 @@ export function quote(data, input) {
     { key: 'term', days: dpw * cfg.termWeeks, label: 'اشتراك بالترم' }
   ].map(u => Object.assign({}, u, bestUnit(tab, u.key, u.days, h, cfg)));
 
-  const { total: perChild, counts } = solve(units, totalDays);
+  const { total: listPerChild, counts } = solve(units, totalDays);
 
   const items = [];
   for (const u of units) {
     const n = counts.get(u.key);
     if (!n) continue;
     items.push({
-      key: u.key, tier: u.tier, count: n, unitCost: u.cost, sum: u.cost * n, url: u.url,
+      key: u.key, tier: u.tier, count: n, unitCost: u.cost, sum: u.cost * n, url: u.url, flex: false,
       title: (u.tier ? u.label + ' · ' + u.tier + ' ساعات' : 'اشتراك بالساعة') + (n > 1 ? ' × ' + n : ''),
       detail: u.tier
         ? u.cost + ' ريال للواحد · يغطي ' + coverDays(u.days)
         : ar(h, HOUR_F) + ' × ' + ar(u.days, DAY_F) + ' × ' + cfg.hourly + ' ريال'
+    });
+  }
+
+  /* خصم الدوام المرن: من لا تقابل ساعاتِه باقةٌ معلنة ويشترك شهرياً
+     يُحسب له سعر ساعة مخفَّض، ويؤخذ الأرخص بينه وبين السعر المعلن.
+     الباقات المعلنة لا تُمَس إطلاقاً. */
+  const pol = discountPolicy(data);
+  const duration = input.duration || durationOf(weeks, cfg);
+  const rate = flexRate(data, pol);
+  const eligible = pol.active && h >= pol.minHours &&
+    !hasOfficialPackage(data, h) && pol.durations.includes(duration);
+  const flexCost = eligible
+    ? Math.floor(totalHours * rate / (pol.roundTo > 1 ? pol.roundTo : 1)) * (pol.roundTo > 1 ? pol.roundTo : 1)
+    : Infinity;
+  const flex = eligible && flexCost < listPerChild;
+
+  let perChild = listPerChild;
+  if (flex) {
+    perChild = flexCost;
+    // سعر مرن لا يقابله منتج في المتجر، فلا رابط شراء له.
+    items.length = 0;
+    items.push({
+      key: 'flex', tier: null, count: 1, unitCost: flexCost, sum: flexCost, url: null, flex: true,
+      title: 'اشتراك مرن · ' + ar(h, HOUR_F) + ' يومياً',
+      detail: ar(totalHours, HOUR_F) + ' × ' + rate + ' ريال (سعر الساعة المخفَّض بدل ' +
+        cfg.hourly + ') · يغطي ' + coverDays(totalDays)
     });
   }
 
@@ -143,21 +203,24 @@ export function quote(data, input) {
   // المقارنة لكل طفل، وتُخفى أي طريقة لا تقابلها باقة حقيقية (tier === null).
   const byKey = k => units.find(u => u.key === k);
   const rows = [
-    { key: 'best', label: 'الأقل تكلفة (المعروض أعلاه)', detail: 'تركيبة باقات المركز', sum: perChild, win: true },
-    { key: 'hourly', label: 'كل الأيام بالساعة', detail: ar(totalHours, HOUR_F) + ' × ' + cfg.hourly + ' ريال', sum: hourlyPerChild }
+    { key: 'best', label: 'الأقل تكلفة (المعروض أعلاه)', detail: flex ? 'اشتراك مرن بسعر ساعة ' + rate + ' ريال' : 'تركيبة باقات المركز', sum: perChild, win: true }
   ];
+  if (flex) rows.push({ key: 'list', label: 'بالأسعار المعلنة', detail: 'أقل تركيبة من باقات المركز', sum: listPerChild });
+  rows.push({ key: 'hourly', label: 'كل الأيام بالساعة', detail: ar(totalHours, HOUR_F) + ' × ' + cfg.hourly + ' ريال', sum: hourlyPerChild });
   const d = byKey('day'), w = byKey('week'), m = byKey('month'), t = byKey('term');
   if (d.tier) rows.push({ key: 'day', label: 'كل الأيام باشتراك يومي', detail: ar(totalDays, DAY_F) + ' × ' + d.cost + ' ريال', sum: d.cost * totalDays });
   if (w.tier) { const n = Math.ceil(totalDays / w.days); rows.push({ key: 'week', label: 'اشتراك أسبوعي', detail: ar(n, WEEK_F) + ' × ' + w.cost + ' ريال', sum: w.cost * n }); }
   if (m.tier) { const n = Math.ceil(totalDays / m.days); rows.push({ key: 'month', label: 'اشتراك شهري', detail: ar(n, MONTH_F) + ' × ' + m.cost + ' ريال', sum: m.cost * n }); }
   if (t.tier) { const n = Math.ceil(totalDays / t.days); rows.push({ key: 'term', label: 'اشتراك بالترم', detail: ar(n, TERM_F) + ' × ' + t.cost + ' ريال', sum: t.cost * n }); }
 
-  const upgradeNote = upgraded
-    ? 'لا توجد باقة ' + h + ' ساعات، فحُسبت على أقرب باقة أعلى: ' + upTier + ' ساعات.'
-    : '';
+  const upgradeNote = flex
+    ? 'لا توجد باقة ' + h + ' ساعات، فحُسب اشتراك مرن بسعر ساعة ' + rate + ' ريال (أقل ' +
+      pol.hourlyOff + '% من ' + cfg.hourly + ') بدل ' + listPerChild + ' ريال بالأسعار المعلنة.'
+    : (upgraded ? 'لا توجد باقة ' + h + ' ساعات، فحُسبت على أقرب باقة أعلى: ' + upTier + ' ساعات.' : '');
 
   return {
-    cfg, period: { key: tab.key, label: tab.label, categoryUrl: tab.categoryUrl, hourUrl: tab.hour.url },
+    cfg, pol, duration, flex, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
+    period: { key: tab.key, label: tab.label, categoryUrl: tab.categoryUrl, hourUrl: tab.hour.url },
     hours: h, daysPerWeek: dpw, weeks, kids, totalDays, totalHours,
     perChild, gross, discount, net, saving, hourlyPerChild,
     items, units, rows, upgraded, upTier, upgradeNote,
@@ -171,6 +234,7 @@ export function quote(data, input) {
       kids: ar(kids, KID_F),
       discount: 'خصم الأخوة ' + cfg.siblingOff + '% — ' + discount + ' ريال',
       saving: 'توفير ' + saving + ' ريال عن الحساب بالساعة',
+      flexSaving: 'أقل من السعر المعلن بـ' + (listPerChild - perChild) * kids + ' ريال',
       perDay: 'يعادل ' + Math.round(net / (totalDays * kids)) + ' ريال في اليوم للطفل',
       perHour: 'يعادل ' + (Math.round((net / (totalHours * kids)) * 10) / 10) + ' ريال للساعة',
       chosen: items.map(i => i.title).join(' + ')

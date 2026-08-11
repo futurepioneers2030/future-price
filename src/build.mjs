@@ -2,15 +2,22 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaults, assumptionsLine, TIERS, quote as quoteFn, ar, coverDays, DAY_F } from './calc.js';
-import { promoQuote, policy, officialHours, promoHoursList } from './promo.js';
+import {
+  defaults, assumptionsLine, TIERS, quote as quoteFn, ar, coverDays, DAY_F,
+  discountPolicy, flexRate, hasOfficialPackage
+} from './calc.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
 const DATA = JSON.parse(readFileSync(join(ROOT, 'data', 'packages.json'), 'utf8'));
-const PROMO = JSON.parse(readFileSync(join(ROOT, 'data', 'promo.json'), 'utf8'));
+const DISCOUNT = JSON.parse(readFileSync(join(ROOT, 'data', 'discount.json'), 'utf8'));
 const CFG = defaults(DATA);
-const PROMO_ON = PROMO.active !== false;
+// سياسة الخصم تُدمج في البيانات المطبوعة، فيراها المتصفح والاختبار معاً.
+DATA.discount = DISCOUNT;
+const POL = discountPolicy(DATA);
+const RATE = flexRate(DATA, POL);
+const OFFICIAL = DATA.periods.morning.packages.map(p => p.hours);
+const FLEX_HOURS = [1,2,3,4,5,6,7,8,9,10].filter(h => POL.active && h >= POL.minHours && !hasOfficialPackage(DATA, h));
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const write = (rel, body) => {
@@ -77,25 +84,22 @@ const assumptionsCard = () => `<section class="rw-card rw-card--dashed" aria-lab
   <p class="rw-prose">${esc(assumptionsLine(CFG))}</p>
 </section>`;
 
-/* ——— العرض المؤقت ——— */
+/* ——— خصم الدوام المرن ——— */
 
-const POL = policy(PROMO);
-const OFFICIAL = officialHours(DATA);
-const PROMO_HOURS = promoHoursList(DATA, POL);
+const DUR_AR = { week: 'الأسبوع', month: 'الشهر', term: 'الترم' };
 
-const promoRulesCard = () => `<section class="rw-card rw-card--dashed" aria-label="كيف يُحسب سعر العرض">
-  <h2 class="rw-card__title">كيف يُحسب سعر العرض</h2>
+const discountRulesCard = () => !POL.active ? '' : `<section class="rw-card rw-card--dashed" aria-label="خصم الدوام المرن">
+  <h2 class="rw-card__title">${esc(POL.label)}</h2>
   <ul class="rw-rules">
-    <li><b>الباقات الرسمية (${OFFICIAL.join(' · ')} ساعات)</b> — بسعرها المعلن في دليل الأسعار، بلا أي تغيير.</li>
+    <li><b>الباقات المعلنة (${OFFICIAL.join(' · ')} ساعات)</b> — بسعرها في دليل الأسعار، بلا أي تغيير.</li>
     <li><b>الساعة الواحدة</b> — بسعرها المعلن ${CFG.hourly} ريال، وهو سعر رئيسي في الدليل.</li>
-    <li><b>الباقات بالطلب (${PROMO_HOURS.join(' · ')} ساعات)</b> — بالأرخص من مسارين:
-      <br>‏١) كل ساعات الدوام × <b>${POL.hourlyRate} ريال للساعة</b> بدل ${CFG.hourly}،
-      <br>‏٢) أقرب باقة أعلى مخصومة <b>${POL.off}%</b> — سقف يمنع أن تصير الباقة بالطلب أغلى من الرسمية.</li>
-    <li><b>التقريب${POL.roundMode === 'floor' ? ' لأسفل' : ''} لأقرب ${POL.roundTo} ريالات</b> — فالسعر لا يزيد عن الحساب النظري أبداً.</li>
-    <li><b>ضمانة:</b> لا يدفع صاحب الساعات الأقل أكثر من صاحب الساعات الأكثر — إن كانت باقة ساعات أعلى أرخص، يُسعَّر عليها.</li>
+    <li><b>من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات)</b> ويشترك
+      <b>${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}</b> — يُحسب له سعر ساعة
+      <b>${RATE} ريال</b> (أقل ${POL.hourlyOff}% من ${CFG.hourly})، ويؤخذ الأرخص بينه وبين السعر المعلن.</li>
+    <li><b>التقريب لأسفل لأقرب ${POL.roundTo} ريالات</b> — فالسعر لا يزيد عن الحساب النظري أبداً.</li>
     <li><b>خصم الأخوة ${CFG.siblingOff}%</b> من طفلين — يُطبَّق بعد ذلك كالمعتاد.</li>
   </ul>
-  <p class="rw-prose">${esc('سعر العرض غير مرتبط بمنتج في المتجر — يُفعَّل عبر إدارة المركز.' + (PROMO.validUntil ? ' سريان العرض: ' + PROMO.validUntil + '.' : ''))}</p>
+  <p class="rw-prose">السعر المرن غير مرتبط بمنتج في المتجر — يُفعَّل عبر إدارة المركز.</p>
 </section>`;
 
 /** جدول الأسعار الكامل لفترة واحدة — البديل الثابت عند تعطيل JavaScript. */
@@ -144,21 +148,21 @@ const DAYS = [1, 2, 3, 4, 5];
 
 function matrixTable(dur, dpw) {
   const rows = HOURS.map(h => {
-    const l = quoteFn(DATA, { hours: h, daysPerWeek: dpw, weeks: dur.weeks, kids: 1 });
-    const p = promoQuote(DATA, PROMO, { hours: h, daysPerWeek: dpw, weeks: dur.weeks, kids: 1 });
-    const diff = l.net - p.net;
-    const off = diff > 0 ? Math.round((diff / l.net) * 1000) / 10 : 0;
+    const q = quoteFn(DATA, { hours: h, daysPerWeek: dpw, weeks: dur.weeks, duration: dur.key, kids: 1 });
+    const list = q.listPerChild;
+    const diff = list - q.perChild;
+    const off = diff > 0 ? Math.round((diff / list) * 1000) / 10 : 0;
     const official = OFFICIAL.includes(h);
     return `<tr class="${diff > 0 ? 'is-promo' : (official ? 'is-official' : '')}">
-      <td>${h}</td><td>${l.net}</td><td>${diff > 0 ? p.net : '<span class="same">نفسه</span>'}</td>
-      <td>${diff > 0 ? '−' + diff + ' <small>(−' + off + '%)</small>' : (official ? '<span class="tag">رسمية</span>' : '—')}</td>
+      <td>${h}</td><td>${list}</td><td>${diff > 0 ? q.perChild : '<span class="same">نفسه</span>'}</td>
+      <td>${diff > 0 ? '−' + diff + ' <small>(−' + off + '%)</small>' : (official ? '<span class="tag">معلنة</span>' : '—')}</td>
     </tr>`;
   }).join('\n      ');
   return `<figure class="rw-mx">
     <figcaption><b>${esc(dur.label)}</b> · ${esc(ar(dpw, DAY_F))} أسبوعياً
       <span>${esc(coverDays(dpw * dur.weeks))}</span></figcaption>
     <table class="rw-table rw-table--mx">
-      <thead><tr><th scope="col">ساعات</th><th scope="col">المعلن</th><th scope="col">العرض</th><th scope="col">الفرق</th></tr></thead>
+      <thead><tr><th scope="col">ساعات</th><th scope="col">المعلن</th><th scope="col">بعد الخصم</th><th scope="col">الفرق</th></tr></thead>
       <tbody>
       ${rows}
       </tbody>
@@ -197,42 +201,12 @@ const indexHtml = page({
     h1: 'حاسبة تسعير الاشتراكات',
     lede: 'أداة داخلية لإدارة المركز — تحسب السعر العادل من الباقات المعلنة',
     chips: [
-      PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : '',
-      chipLink('جدول الأسعار الكامل ↗', '/table/'),
-      chipLink('نسخة الأهالي مع روابط الشراء ↗', '/parents/'),
       chip('الأسعار متطابقة في الفترتين الصباحية والمسائية')
     ].filter(Boolean)
   })}
   <main class="rw-wrap rw-wrap--narrow">
     <div id="rw-chat">${fallback(false)}</div>
-    ${assumptionsCard()}
-  </main>
-  ${footSlim()}
-  <div class="rw-bar rw-bar--end"></div>
-</div>`
-});
-
-// 2) حاسبة العرض المؤقت — نفس المحادثة، بسياسة خصم مختلفة تماماً.
-const promoHtml = page({
-  title: 'حاسبة العرض المؤقت — ' + DATA.brand,
-  desc: 'أداة داخلية تحسب سعر العرض التحفيزي المؤقت على الساعات غير الرسمية.',
-  bodyClass: 'rw-promo',
-  script: '/assets/chat-promo.js',
-  extraHead: jsonScript('rw-promo-data', PROMO),
-  body: `<a class="rw-skip" href="#rw-chat">تخطَّ إلى الحاسبة</a>
-<div class="rw-shell">
-  <div class="rw-bar"></div>
-  ${headerBlock({
-    h1: PROMO.headline || 'حاسبة العرض المؤقت',
-    lede: PROMO.lede || 'خصم تحفيزي على الساعات غير الرسمية',
-    chips: [
-      chip(PROMO.badge || 'عرض مؤقت', 'gold'),
-      chipLink('← الحاسبة الرسمية', '/')
-    ]
-  })}
-  <main class="rw-wrap rw-wrap--narrow">
-    <div id="rw-chat">${fallback(false)}</div>
-    ${promoRulesCard()}
+    ${discountRulesCard()}
     ${assumptionsCard()}
   </main>
   ${footSlim()}
@@ -276,25 +250,25 @@ const embedHtml = page({
 // 3) جدول المقارنة الكامل — المعلن مقابل العرض، لكل الساعات والأيام والمدد.
 const tableHtml = page({
   title: 'جدول الأسعار الكامل — ' + DATA.brand,
-  desc: 'مقارنة كاملة بين الأسعار المعلنة وأسعار العرض المؤقت لكل الساعات والأيام والمدد.',
+  desc: 'مقارنة كاملة بين الأسعار المعلنة والأسعار بعد الخصم لكل الساعات والأيام والمدد.',
   script: '/assets/noop.js',
   body: `<div class="rw-shell">
   <div class="rw-bar"></div>
   ${headerBlock({
     h1: 'جدول الأسعار الكامل',
-    lede: 'الأسعار المعلنة مقابل أسعار العرض المؤقت — لكل طفل، قبل خصم الأخوة',
+    lede: 'الأسعار المعلنة مقابل الأسعار بعد الخصم — لكل طفل، قبل خصم الأخوة',
     chips: [
       chipLink('← الحاسبة الرسمية', '/'),
-      PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : ''
-    ].filter(Boolean)
+      chipLink('حاسبة الأهالي ↗', '/parents/')
+    ]
   })}
   <main class="rw-wrap rw-wrap--wide">
     <section class="rw-card rw-card--dashed" aria-label="كيف تقرأ الجدول">
       <h2 class="rw-card__title">كيف تقرأ الجدول</h2>
       <ul class="rw-rules">
-        <li><b>المعلن</b> — سعر الأداة الرسمية من دليل الأسعار (${OFFICIAL.join(' · ')} ساعات).</li>
-        <li><b>العرض</b> — سعر «الباقة بالطلب»: الأرخص من (كل الساعات × ${POL.hourlyRate} ريال) أو (أقرب باقة أعلى مخصومة ${POL.off}%)، مقرَّباً لأسفل لأقرب ${POL.roundTo} ريالات.</li>
-        <li><b>نفسه</b> — الساعات لها باقة رسمية معلنة، فلا يُمس سعرها.</li>
+        <li><b>المعلن</b> — أقل تركيبة من باقات دليل الأسعار (${OFFICIAL.join(' · ')} ساعات).</li>
+        <li><b>بعد الخصم</b> — ${POL.label}: من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات) ويشترك ${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}، يُحسب له سعر ساعة <b>${RATE} ريال</b> بدل ${CFG.hourly} (أقل ${POL.hourlyOff}%)، ويؤخذ الأرخص.</li>
+        <li><b>نفسه</b> — الساعات لها باقة معلنة أو الخصم لا ينطبق، فالسعر هو المعلن.</li>
         <li>كل المبالغ <b>لكل طفل</b> وقبل خصم الأخوة ${CFG.siblingOff}% (من طفلين فأكثر).</li>
         <li>المدد المعتمدة ثلاث: <b>أسبوع · شهر · ترم</b>. والأسعار متطابقة في الفترتين الصباحية والمسائية.</li>
       </ul>
@@ -313,7 +287,7 @@ const notFoundHtml = page({
   script: '/assets/noop.js',
   body: `<div class="rw-shell">
   <div class="rw-bar"></div>
-  ${headerBlock({ h1: 'الصفحة غير موجودة', lede: 'الرابط الذي فتحته غير صحيح أو تغيّر.', chips: [chipLink('أداة التسعير الداخلية ↗', '/'), PROMO_ON ? chipLink('حاسبة العرض المؤقت ↗', '/promo/', 'gold') : '', chipLink('حاسبة الأهالي ↗', '/parents/')].filter(Boolean) })}
+  ${headerBlock({ h1: 'الصفحة غير موجودة', lede: 'الرابط الذي فتحته غير صحيح أو تغيّر.', chips: [chipLink('أداة التسعير الداخلية ↗', '/'), chipLink('حاسبة الأهالي ↗', '/parents/')].filter(Boolean) })}
   <main class="rw-wrap rw-wrap--narrow"></main>
   ${footSlim()}
   <div class="rw-bar rw-bar--end"></div>
@@ -327,7 +301,6 @@ mkdirSync(SITE, { recursive: true });
 
 const out = [
   write('index.html', indexHtml),
-  write('promo/index.html', promoHtml),
   write('table/index.html', tableHtml),
   write('parents/index.html', parentsHtml),
   write('embed/index.html', embedHtml),
@@ -344,7 +317,7 @@ const out = [
   write('assets/noop.js', 'export {};\n')
 ];
 
-for (const f of ['calc.js', 'promo.js', 'ui.js', 'chat.js', 'chat-main.js', 'chat-promo.js', 'counters.js', 'styles.css']) {
+for (const f of ['calc.js', 'ui.js', 'chat.js', 'chat-main.js', 'counters.js', 'styles.css']) {
   mkdirSync(join(SITE, 'assets'), { recursive: true });
   copyFileSync(join(ROOT, 'src', f), join(SITE, 'assets', f));
   out.push('assets/' + f);
@@ -353,7 +326,8 @@ for (const f of ['calc.js', 'promo.js', 'ui.js', 'chat.js', 'chat-main.js', 'cha
 console.log('بُنيت ' + out.length + ' ملفاً في site/:');
 out.forEach(f => console.log('  · ' + f));
 console.log('الشرائح الرسمية: ' + TIERS.join('، ') + ' ساعات · سعر الساعة ' + CFG.hourly + ' ريال');
-console.log(PROMO_ON
-  ? 'العرض المؤقت: الباقات بالطلب (' + PROMO_HOURS.join('، ') + ' ساعات) بسعر الساعة ' +
-    POL.hourlyRate + ' ريال، وسقف ' + POL.off + '% خصماً عن أقرب باقة أعلى'
-  : 'العرض المؤقت: متوقف (active = false)');
+console.log(POL.active
+  ? POL.label + ': ' + FLEX_HOURS.join('، ') + ' ساعات · ' +
+    POL.durations.map(d => DUR_AR[d] || d).join('/') + ' · سعر الساعة ' + RATE +
+    ' ريال (أقل ' + POL.hourlyOff + '% من ' + CFG.hourly + ')'
+  : 'الخصم: متوقف (active = false)');
