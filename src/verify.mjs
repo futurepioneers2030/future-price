@@ -41,9 +41,11 @@ ok('لا صفوف أسبوعي/شهري/ترم في المقارنة عند مس
   q3.rows.every(r => ['best', 'hourly'].includes(r.key)), JSON.stringify(q3.rows.map(r => r.key)));
 ok('لا تنبيه ترقية عندما لا تُستخدم أي باقة', q3.upgraded === false);
 
+// ⚠ تغيّر عن كراسة التسليم: العميل ألغى قاعدة «الحضور الجزئي بلا خصم»، وصار سعر الباقة
+// يتناسب مع أيام الدوام. فـ6 ساعات × 3 أيام × أسبوع = 350 × 3/5 = 210 بدل 225 (3 × 75).
 const q4 = quote(DATA, { hours: 6, daysPerWeek: 3, weeks: 1, kids: 1 });
-eq('6 ساعات × 3 أيام × أسبوع = 225 (اليومي أرخص من الأسبوعي)', q4.net, 225);
-ok('المثال 4 يستخدم اشتراك اليوم ×3', q4.items.length === 1 && q4.items[0].key === 'day' && q4.items[0].count === 3);
+eq('6 ساعات × 3 أيام × أسبوع = 210 (الأسبوعي متناسباً مع الأيام)', q4.net, 210);
+ok('المثال 4 يستخدم الأسبوعي المتناسب', q4.items.length === 1 && q4.items[0].key === 'week' && q4.items[0].prorated === true);
 
 const q5 = quote(DATA, { hours: 6, daysPerWeek: 5, weeks: 4, kids: 2 });
 eq('طفلان بالباقة الشهرية: الإجمالي قبل الخصم 1700', q5.gross, 1700);
@@ -106,6 +108,8 @@ for (const period of ['morning', 'evening']) {
           for (const it of q.items) {
             // العنصر المرن سعرٌ لا يقابله منتج، ويُفحص في قسم الخصم أدناه.
             if (it.flex) { if (it.url !== null || !it.title.startsWith('اشتراك مرن')) nameBad++; continue; }
+            // السعر المتناسب مع أيام أقل لا يقابله منتج أيضاً — المتجر يبيع بالسعر الكامل.
+            if (it.prorated) { if (it.url !== null) urlBad++; continue; }
             if (!URLS.has(it.url)) urlBad++;
             if (it.tier === null && it.title !== 'اشتراك بالساعة' && !it.title.startsWith('اشتراك بالساعة ×')) nameBad++;
             if (it.tier !== null && it.tier < h) nameBad++;
@@ -241,10 +245,48 @@ ok('تحويل أي رابط /promo/ قديم إلى الحاسبة', read('_red
 const Q = (h, d, w, k, dur) => quote(DATA, { hours: h, daysPerWeek: d, weeks: w, kids: k || 1, duration: dur });
 
 eq('سعر الساعة بعد الخصم = ' + RATE, RATE, Math.round(CFG.hourly * (1 - POL.hourlyOff / 100) * 100) / 100);
-eq('الخصم: ساعتان × 4 أيام × شهر = 520 (بدل 650)', Q(2, 4, CFG.monthWeeks, 1).net, 520);
-eq('الخصم: نفس المثال بالأسعار المعلنة 650', Q(2, 4, CFG.monthWeeks, 1).listPerChild, 650);
-eq('الخصم: ساعتان × 3 أيام × شهر = 390 (بدل 600)', Q(2, 3, CFG.monthWeeks, 1).net, 390);
-eq('الخصم: 3 ساعات × 3 أيام × شهر = 550 (بدل 650)', Q(3, 3, CFG.monthWeeks, 1).net, 550);
+/* ——— تناسب سعر الباقة مع أيام الدوام ——— */
+
+// الثابت الحاكم: دوام 5 أيام = السعر المعلن حرفياً. لم يتغيّر شيء لمن يدوم دواماً كاملاً.
+let fullWeekChanged = 0;
+for (const d of [{ w: 1, k: 'week' }, { w: CFG.monthWeeks, k: 'month' }, { w: CFG.termWeeks, k: 'term' }]) {
+  for (const t of TIERS) {
+    if (Q(t, CFG.weekDays, d.w, 1, d.k).perChild !== M.tiers[t][d.k].price) fullWeekChanged++;
+  }
+}
+eq('دوام 5 أيام: كل الأسعار المعلنة كما هي بلا أي تغيير', fullWeekChanged, 0);
+
+// لا تكرار بين الأيام — هذا هو الخلل الذي طلب العميل إصلاحه
+let dayDup = 0; const dupSample = [];
+for (const d of [{ w: 1, k: 'week' }, { w: CFG.monthWeeks, k: 'month' }, { w: CFG.termWeeks, k: 'term' }]) {
+  for (let h = 1; h <= 10; h++) {
+    const v = [1, 2, 3, 4, 5].map(dpw => Q(h, dpw, d.w, 1, d.k).net);
+    for (let i = 1; i < 5; i++) if (v[i] === v[i - 1]) { dayDup++; if (dupSample.length < 3) dupSample.push(d.k + ' h=' + h + ' ' + i + '→' + (i + 1) + ' = ' + v[i]); }
+  }
+}
+eq('لا تكرار في السعر بين عدد الأيام', dayDup, 0, dupSample.join(' · '));
+
+// السعر المتناسب لا يقابله منتج في المتجر (المتجر يبيع بالسعر الكامل)
+let proUrl = 0, proCount = 0, proAtFull = 0;
+for (let h = 1; h <= 10; h++) {
+  for (let dpw = 1; dpw <= 5; dpw++) {
+    for (const d of [{ w: 1, k: 'week' }, { w: CFG.monthWeeks, k: 'month' }, { w: CFG.termWeeks, k: 'term' }]) {
+      for (const i of Q(h, dpw, d.w, 1, d.k).items) {
+        if (!i.prorated) continue;
+        proCount++;
+        if (i.url !== null) proUrl++;
+        if (dpw === CFG.weekDays) proAtFull++;
+      }
+    }
+  }
+}
+eq('السعر المتناسب بلا رابط متجر (' + proCount + ' سطراً)', proUrl, 0);
+eq('لا تناسب إطلاقاً عند الدوام الكامل', proAtFull, 0);
+
+eq('الخصم: ساعتان × 4 أيام × شهر = 440', Q(2, 4, CFG.monthWeeks, 1).net, 440);
+eq('الخصم: السعر المتناسب المعلن لنفس الدوام 520', Q(2, 4, CFG.monthWeeks, 1).listPerChild, 520);
+eq('الخصم: ساعتان × 3 أيام × شهر = 330', Q(2, 3, CFG.monthWeeks, 1).net, 330);
+eq('الخصم: ساعتان × 5 أيام × شهر = 550 (بدل 650 المعلن)', Q(2, 5, CFG.monthWeeks, 1).net, 550);
 
 // خصم النسبة على الباقة — يفيد 7 و9 ساعات
 eq('الخصم: 7 ساعات × 5 أيام × شهر = 890 (بدل 1050)', Q(7, 5, CFG.monthWeeks, 1).net, 890);
@@ -260,7 +302,6 @@ ok('سياسة الخصم: نسبة الباقة ≤ 16% (فوقها ينكسر 
   POL.packageOff > 0 && POL.packageOff <= 16, String(POL.packageOff));
 ok('الخصم: سطر الباقة المخصومة بلا رابط متجر',
   Q(7, 5, CFG.monthWeeks, 1).items.every(i => !i.flex || i.url === null));
-ok('الخصم: سعر الساعة الفعلي = ' + RATE + ' في المثال', Q(2, 4, CFG.monthWeeks, 1).net / 32 === RATE);
 ok('الخصم: العنصر المرن بلا رابط متجر', Q(2, 4, CFG.monthWeeks, 1).items.every(i => !i.flex || i.url === null));
 
 let officialTouched = 0, aboveList = 0, weekTermTouched = 0, oneHourTouched = 0, flexUrl = 0, notMono = 0, sweptD = 0;

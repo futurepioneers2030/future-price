@@ -91,7 +91,9 @@ const DUR_AR = { week: 'الأسبوع', month: 'الشهر', term: 'الترم'
 const discountRulesCard = () => !POL.active ? '' : `<section class="rw-card rw-card--dashed" aria-label="خصم الدوام المرن">
   <h2 class="rw-card__title">${esc(POL.label)}</h2>
   <ul class="rw-rules">
-    <li><b>الباقات المعلنة (${OFFICIAL.join(' · ')} ساعات)</b> — بسعرها في دليل الأسعار، بلا أي تغيير.</li>
+    <li><b>الأسعار المعلنة لدوام ${POL.prorateBase} أيام أسبوعياً</b> — ومن يدوم أياماً أقل يدفع
+      <b>بنسبة أيامه</b> (3 أيام = ⅗ السعر). فلكل عدد أيام سعرٌ مختلف، ولا يتكرر السعر.</li>
+    <li><b>الباقات المعلنة (${OFFICIAL.join(' · ')} ساعات)</b> — عند الدوام الكامل بسعرها في الدليل، بلا أي تغيير.</li>
     <li><b>الساعة الواحدة</b> — بسعرها المعلن ${CFG.hourly} ريال، وهو سعر رئيسي في الدليل.</li>
     <li><b>من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات)</b> ويشترك
       <b>${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}</b> — يُحسب له سعر ساعة
@@ -116,7 +118,7 @@ function priceTable(periodKey, withLinks) {
     ? `<tr><td>${esc(p.hour.label)}</td><td><a href="${esc(p.hour.url)}" target="_blank" rel="noopener">${p.hour.price}</a></td><td colspan="3">—</td></tr>`
     : `<tr><td>${esc(p.hour.label)}</td><td>${p.hour.price}</td><td colspan="3">—</td></tr>`;
   return `<div class="rw-table-wrap"><table class="rw-table">
-      <caption>${esc(p.label)} — الأسعار بالريال</caption>
+      <caption>${esc(p.label)} — الأسعار بالريال لدوام ${POL.prorateBase} أيام أسبوعياً</caption>
       <thead><tr><th scope="col">الباقة</th>${th}</tr></thead>
       <tbody>
       ${hourRow}
@@ -162,7 +164,7 @@ function matrixTable(dur, dpw) {
     <figcaption><b>${esc(dur.label)}</b> · ${esc(ar(dpw, DAY_F))} أسبوعياً
       <span>${esc(coverDays(dpw * dur.weeks))}</span></figcaption>
     <table class="rw-table rw-table--mx">
-      <thead><tr><th scope="col">ساعات</th><th scope="col">المعلن</th><th scope="col">بعد الخصم</th><th scope="col">الفرق</th></tr></thead>
+      <thead><tr><th scope="col">ساعات</th><th scope="col">قبل الخصم</th><th scope="col">بعد الخصم</th><th scope="col">الفرق</th></tr></thead>
       <tbody>
       ${rows}
       </tbody>
@@ -266,11 +268,12 @@ const tableHtml = page({
     <section class="rw-card rw-card--dashed" aria-label="كيف تقرأ الجدول">
       <h2 class="rw-card__title">كيف تقرأ الجدول</h2>
       <ul class="rw-rules">
-        <li><b>المعلن</b> — أقل تركيبة من باقات دليل الأسعار (${OFFICIAL.join(' · ')} ساعات).</li>
-        <li><b>بعد الخصم</b> — ${POL.label}: من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات) ويشترك ${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}، يُحسب له سعر ساعة <b>${RATE} ريال</b> بدل ${CFG.hourly} (أقل ${POL.hourlyOff}%)، ويؤخذ الأرخص.</li>
-        <li><b>نفسه</b> — الساعات لها باقة معلنة أو الخصم لا ينطبق، فالسعر هو المعلن.</li>
+        <li><b>قبل الخصم</b> — أقل تركيبة من باقات الدليل، <b>متناسبةً مع أيام الدوام</b>: الأسعار المعلنة لدوام ${POL.prorateBase} أيام، ومن يدوم 3 أيام يدفع ⅗ السعر.</li>
+        <li><b>بعد الخصم</b> — ${POL.label}: من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات) ويشترك ${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}، يُحسب له سعر ساعة <b>${RATE} ريال</b> بدل ${CFG.hourly} (أقل ${POL.hourlyOff}%)، أو خصم ${POL.packageOff}% على الباقة المرقّاة — ويؤخذ الأرخص.</li>
+        <li><b>نفسه</b> — الساعات لها باقة معلنة أو الخصم لا ينطبق، فالسعر هو المتناسب بلا خصم إضافي.</li>
         <li>كل المبالغ <b>لكل طفل</b> وقبل خصم الأخوة ${CFG.siblingOff}% (من طفلين فأكثر).</li>
         <li>المدد المعتمدة ثلاث: <b>أسبوع · شهر · ترم</b>. والأسعار متطابقة في الفترتين الصباحية والمسائية.</li>
+        <li><b>عمود 5 أيام يساوي السعر المعلن حرفياً</b> — لم يتغيّر شيء لمن يدوم دواماً كاملاً.</li>
       </ul>
     </section>
     ${matrixSection()}

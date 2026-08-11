@@ -59,13 +59,20 @@ export function periodTable(data, periodKey) {
  * ويُقارَن أرخص شريحة مؤهلة بالحساب بالساعة (منتج «ساعة واحدة»).
  * tier = null يعني أن السعر جاء من مسار الساعة، فلا يُسمّى باسم باقة.
  */
-export function bestUnit(tab, key, unitDays, h, cfg) {
-  let out = { cost: h * cfg.hourly * unitDays, tier: null, url: tab.hour.url, unitPrice: cfg.hourly };
+export function bestUnit(tab, key, unitDays, h, cfg, opts) {
+  // share < 1 يعني تناسب سعر الباقة مع أيام الدوام الفعلية (الأسعار المعلنة لدوام 5 أيام).
+  const share = (opts && opts.share) ?? 1;
+  const round = (opts && opts.round) || (v => v);
+  let out = { cost: h * cfg.hourly * unitDays, tier: null, url: tab.hour.url, unitPrice: cfg.hourly, prorated: false, listPrice: null };
   for (const t of TIERS) {
     if (t < h) continue;
     const cell = tab.tiers[t] && tab.tiers[t][key];
     if (!cell) continue;
-    if (cell.price < out.cost) out = { cost: cell.price, tier: t, url: cell.url, unitPrice: cell.price };
+    const price = share < 1 ? round(cell.price * share) : cell.price;
+    if (price < out.cost) {
+      // السعر المتناسب لا يقابله منتج في المتجر (المتجر يبيع بالسعر الكامل)، فلا رابط له.
+      out = { cost: price, tier: t, url: share < 1 ? null : cell.url, unitPrice: price, prorated: share < 1, listPrice: cell.price };
+    }
   }
   return out;
 }
@@ -103,6 +110,11 @@ export function discountPolicy(data) {
     minHours: d.minHours ?? 2,
     durations: d.durations || ['month'],
     roundTo: d.roundTo ?? 5,
+    // تناسب سعر الباقة مع أيام الدوام: الأسعار المعلنة لدوام prorateBase أيام أسبوعياً.
+    prorate: d.prorate !== false,
+    prorateBase: d.prorateBase ?? 5,
+    // لا يدفع صاحب الساعات الأقل أكثر من صاحب الساعات الأكثر.
+    monotonic: d.monotonic !== false,
     label: d.label || 'خصم الدوام المرن'
   };
 }
@@ -131,6 +143,42 @@ export function durationOf(weeks, cfg) {
  * input: { hours, daysPerWeek, weeks, kids, period, duration }
  */
 export function quote(data, input) {
+  const base = rawQuote(data, input);
+  const pol = base.pol;
+  // ضمانة الرتابة: لا يدفع صاحب الساعات الأقل أكثر من صاحب الساعات الأكثر.
+  // تُطبَّق فقط على من لا تقابل ساعاتِه باقةٌ معلنة، فلا يُمَس سعر باقة معلنة أبداً.
+  if (!pol.monotonic || hasOfficialPackage(data, base.hours)) return base;
+
+  let best = base;
+  for (let h2 = base.hours + 1; h2 <= TIERS[TIERS.length - 1]; h2++) {
+    const alt = rawQuote(data, Object.assign({}, input, { hours: h2 }));
+    if (alt.perChild < best.perChild) best = alt;
+  }
+  if (best === base) return base;
+
+  // تسعيرة ساعات أعلى أرخص: نأخذها ونُبقي الساعات المطلوبة في العرض.
+  const kids = base.kids, totalDays = base.totalDays, totalHours = base.totalHours;
+  const perChild = best.perChild;
+  const gross = perChild * kids;
+  const discount = kids >= 2 ? Math.round(gross * base.cfg.siblingOff / 100) : 0;
+  const net = gross - discount;
+  return Object.assign({}, best, {
+    hours: base.hours, pricedAs: best.hours, totalHours, listPerChild: base.listPerChild,
+    flexSaving: base.listPerChild - perChild, perChild, gross, discount, net,
+    perDay: Math.round(net / (totalDays * kids)),
+    perHour: Math.round((net / (totalHours * kids)) * 10) / 10,
+    upgradeNote: 'سُعِّرت على أرخص تسعيرة أعلى (' + best.hours + ' ساعات) — لا يدفع صاحب ' +
+      'الساعات الأقل أكثر من صاحب الساعات الأكثر.',
+    labels: Object.assign({}, best.labels, {
+      hours: ar(base.hours, HOUR_F),
+      perDay: 'يعادل ' + Math.round(net / (totalDays * kids)) + ' ريال في اليوم للطفل',
+      perHour: 'يعادل ' + (Math.round((net / (totalHours * kids)) * 10) / 10) + ' ريال للساعة',
+      flexSaving: 'أقل من السعر المعلن بـ' + (base.listPerChild - perChild) * kids + ' ريال'
+    })
+  });
+}
+
+function rawQuote(data, input) {
   const cfg = Object.assign(defaults(data), input.cfg || {});
   const tab = periodTable(data, input.period || 'morning');
 
@@ -142,12 +190,21 @@ export function quote(data, input) {
   const totalDays = dpw * weeks;
   const totalHours = totalDays * h;
 
+  const pol0 = discountPolicy(data);
+  const step0 = pol0.roundTo > 1 ? pol0.roundTo : 1;
+  const roundDown = v => Math.floor(v / step0) * step0;
+  // الأسعار المعلنة لدوام prorateBase أيام أسبوعياً؛ من يدوم أقل يدفع بنسبة أيامه.
+  const share = pol0.prorate ? Math.min(1, dpw / pol0.prorateBase) : 1;
+  const daysLabel = ar(dpw, DAY_F) + ' من ' + pol0.prorateBase;
+
   const units = [
     { key: 'day', days: 1, label: 'اشتراك باليوم' },
     { key: 'week', days: dpw, label: 'اشتراك أسبوعي' },
     { key: 'month', days: dpw * cfg.monthWeeks, label: 'اشتراك شهري' },
     { key: 'term', days: dpw * cfg.termWeeks, label: 'اشتراك بالترم' }
-  ].map(u => Object.assign({}, u, bestUnit(tab, u.key, u.days, h, cfg)));
+    // الاشتراك اليومي مُسعَّر بالأصل لليوم الواحد، فلا يتناسب مرة أخرى.
+  ].map(u => Object.assign({}, u, bestUnit(tab, u.key, u.days, h, cfg,
+    u.key === 'day' ? null : { share, round: roundDown })));
 
   const { total: listPerChild, counts } = solve(units, totalDays);
 
@@ -156,10 +213,12 @@ export function quote(data, input) {
     const n = counts.get(u.key);
     if (!n) continue;
     items.push({
-      key: u.key, tier: u.tier, count: n, unitCost: u.cost, sum: u.cost * n, url: u.url, flex: false,
+      key: u.key, tier: u.tier, count: n, unitCost: u.cost, sum: u.cost * n, url: u.url,
+      flex: false, prorated: !!u.prorated,
       title: (u.tier ? u.label + ' · ' + u.tier + ' ساعات' : 'اشتراك بالساعة') + (n > 1 ? ' × ' + n : ''),
       detail: u.tier
-        ? u.cost + ' ريال للواحد · يغطي ' + coverDays(u.days)
+        ? u.cost + ' ريال للواحد' + (u.prorated ? ' (بدل ' + u.listPrice + ' — ' + daysLabel + ')' : '') +
+          ' · يغطي ' + coverDays(u.days)
         : ar(h, HOUR_F) + ' × ' + ar(u.days, DAY_F) + ' × ' + cfg.hourly + ' ريال'
     });
   }
@@ -168,11 +227,10 @@ export function quote(data, input) {
        (١) كل ساعات الدوام × سعر ساعة مخفَّض (hourlyOff) — يفيد قليلي الساعات والأيام،
        (٢) نفس التركيبة المعلنة مع خصم packageOff% على أسطر الباقات المرقّاة — يفيد 7 و9 ساعات.
      الباقات المعلنة لا تُمَس إطلاقاً، ولا يُخصم سطرٌ شريحته تساوي ساعات الطفل. */
-  const pol = discountPolicy(data);
+  const pol = pol0;
   const duration = input.duration || durationOf(weeks, cfg);
   const rate = flexRate(data, pol);
-  const step = pol.roundTo > 1 ? pol.roundTo : 1;
-  const down = v => Math.floor(v / step) * step;
+  const down = roundDown;
   const eligible = pol.active && h >= pol.minHours &&
     !hasOfficialPackage(data, h) && pol.durations.includes(duration);
 
@@ -206,7 +264,8 @@ export function quote(data, input) {
         items.push(Object.assign({}, i, {
           title: 'اشتراك مرن · ' + i.title,
           detail: i.sum + ' ريال بدل ' + i.listSum + ' (−' + off + '%) · ' +
-            i.detail.replace(/^\d+ ريال للواحد · /, '')
+            // يُحذف «X ريال للواحد …» من التفصيل كي لا يتكرر المبلغ مع «بدل X»
+            i.detail.replace(/^\d+ ريال للواحد[^·]*· /, '')
         }));
       }
     }
@@ -247,6 +306,7 @@ export function quote(data, input) {
 
   return {
     cfg, pol, duration, flex, flexKind, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
+    prorated: share < 1, share, pricedAs: h,
     period: { key: tab.key, label: tab.label, categoryUrl: tab.categoryUrl, hourUrl: tab.hour.url },
     hours: h, daysPerWeek: dpw, weeks, kids, totalDays, totalHours,
     perChild, gross, discount, net, saving, hourlyPerChild,
