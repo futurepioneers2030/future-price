@@ -306,6 +306,9 @@ const out = [
   write('embed/index.html', embedHtml),
   write('404.html', notFoundHtml),
   write('robots.txt', 'User-agent: *\nDisallow: /\n'),
+  // صفحة العروض المؤقتة أُلغيت وانتقل الخصم إلى الحاسبة الرئيسية —
+  // أي رابط قديم محفوظ يُحوَّل إليها بدل أن يعرض أسعاراً متجاوَزة.
+  write('_redirects', '/promo/* / 301\n/promo / 301\n'),
   write('_headers', `/*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
