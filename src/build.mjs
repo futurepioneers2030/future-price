@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   defaults, assumptionsLine, TIERS, quote as quoteFn, ar, coverDays, DAY_F,
-  discountPolicy, flexRate, hasOfficialPackage
+  discountPolicy, flexRate, flexHours, hasOfficialPackage
 } from './calc.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,9 +15,9 @@ const CFG = defaults(DATA);
 // سياسة الخصم تُدمج في البيانات المطبوعة، فيراها المتصفح والاختبار معاً.
 DATA.discount = DISCOUNT;
 const POL = discountPolicy(DATA);
-const RATE = flexRate(DATA, POL);
+const RATES = POL.hourlyRates;
 const OFFICIAL = DATA.periods.morning.packages.map(p => p.hours);
-const FLEX_HOURS = [1,2,3,4,5,6,7,8,9,10].filter(h => POL.active && h >= POL.minHours && !hasOfficialPackage(DATA, h));
+const FLEX_HOURS = POL.active ? flexHours(POL).filter(h => !hasOfficialPackage(DATA, h)) : [];
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const write = (rel, body) => {
@@ -95,10 +95,14 @@ const discountRulesCard = () => !POL.active ? '' : `<section class="rw-card rw-c
       <b>بنسبة أيامه</b> (3 أيام = ⅗ السعر). فلكل عدد أيام سعرٌ مختلف، ولا يتكرر السعر.</li>
     <li><b>الباقات المعلنة (${OFFICIAL.join(' · ')} ساعات)</b> — عند الدوام الكامل بسعرها في الدليل، بلا أي تغيير.</li>
     <li><b>الساعة الواحدة</b> — بسعرها المعلن ${CFG.hourly} ريال، وهو سعر رئيسي في الدليل.</li>
-    <li><b>من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات)</b> ويشترك
-      <b>${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}</b> — يُحسب له سعر ساعة
-      <b>${RATE} ريال</b> (أقل ${POL.hourlyOff}% من ${CFG.hourly})، ويؤخذ الأرخص بينه وبين السعر المعلن.</li>
-    <li><b>التقريب لأسفل لأقرب ${POL.roundTo} ريالات</b> — فالسعر لا يزيد عن الحساب النظري أبداً.</li>
+    <li><b>من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات)</b> — له
+      <b>سعر ساعة محدد</b>، والسعر = عدد الساعات الكلي × سعر الساعة. فمن يطلب 36 ساعة
+      لا يدفع أبداً كمن يطلب 48 ساعة:
+      <div class="rw-table-wrap"><table class="rw-table rw-table--mx">
+        <thead><tr><th scope="col">المدة</th>${FLEX_HOURS.map(h => `<th scope="col">${h} ساعات</th>`).join('')}</tr></thead>
+        <tbody>${Object.keys(RATES).map(d => `<tr><td>${esc(DUR_AR[d] || d)}</td>${FLEX_HOURS.map(h => `<td>${RATES[d][h] ?? '—'}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div></li>
+    <li><b>التقريب لأسفل لأقرب ${POL.roundTo} ريالات</b>، ولا يتجاوز السعر المعلن أبداً.</li>
     <li><b>خصم الأخوة ${CFG.siblingOff}%</b> من طفلين — يُطبَّق بعد ذلك كالمعتاد.</li>
   </ul>
   <p class="rw-prose">السعر المرن غير مرتبط بمنتج في المتجر — يُفعَّل عبر إدارة المركز.</p>
@@ -269,7 +273,7 @@ const tableHtml = page({
       <h2 class="rw-card__title">كيف تقرأ الجدول</h2>
       <ul class="rw-rules">
         <li><b>قبل الخصم</b> — أقل تركيبة من باقات الدليل، <b>متناسبةً مع أيام الدوام</b>: الأسعار المعلنة لدوام ${POL.prorateBase} أيام، ومن يدوم 3 أيام يدفع ⅗ السعر.</li>
-        <li><b>بعد الخصم</b> — ${POL.label}: من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات) ويشترك ${POL.durations.map(d => DUR_AR[d] || d).join(' أو ')}، يُحسب له سعر ساعة <b>${RATE} ريال</b> بدل ${CFG.hourly} (أقل ${POL.hourlyOff}%)، أو خصم ${POL.packageOff}% على الباقة المرقّاة — ويؤخذ الأرخص.</li>
+        <li><b>بعد الخصم</b> — من ساعاته لا تقابلها باقة (${FLEX_HOURS.join(' · ')} ساعات) يُحسب بسعر ساعة محدد: عدد الساعات الكلي × سعر الساعة. أسعار الساعة ${Object.keys(RATES).map(d => (DUR_AR[d] || d) + ': ' + FLEX_HOURS.map(h => h + '‏س=' + RATES[d][h]).join(' · ')).join(' — ')}.</li>
         <li><b>نفسه</b> — الساعات لها باقة معلنة أو الخصم لا ينطبق، فالسعر هو المتناسب بلا خصم إضافي.</li>
         <li>كل المبالغ <b>لكل طفل</b> وقبل خصم الأخوة ${CFG.siblingOff}% (من طفلين فأكثر).</li>
         <li>المدد المعتمدة ثلاث: <b>أسبوع · شهر · ترم</b>. والأسعار متطابقة في الفترتين الصباحية والمسائية.</li>
@@ -334,6 +338,6 @@ out.forEach(f => console.log('  · ' + f));
 console.log('الشرائح الرسمية: ' + TIERS.join('، ') + ' ساعات · سعر الساعة ' + CFG.hourly + ' ريال');
 console.log(POL.active
   ? POL.label + ': ' + FLEX_HOURS.join('، ') + ' ساعات · ' +
-    POL.durations.map(d => DUR_AR[d] || d).join('/') + ' · سعر الساعة ' + RATE +
-    ' ريال (أقل ' + POL.hourlyOff + '% من ' + CFG.hourly + ')'
+    Object.keys(RATES).map(d => (DUR_AR[d] || d) + ' [' +
+      FLEX_HOURS.map(h => h + 'س=' + RATES[d][h]).join('، ') + ']').join(' · ')
   : 'الخصم: متوقف (active = false)');

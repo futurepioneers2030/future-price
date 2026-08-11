@@ -105,10 +105,8 @@ export function discountPolicy(data) {
   const d = (data && data.discount) || {};
   return {
     active: d.active !== false,
-    hourlyOff: d.hourlyOff ?? 35,
-    packageOff: d.packageOff ?? 15,
-    minHours: d.minHours ?? 2,
-    durations: d.durations || ['month'],
+    // سعر ساعة محدد لكل (مدة × عدد ساعات) لا تقابله باقة معلنة.
+    hourlyRates: d.hourlyRates || {},
     roundTo: d.roundTo ?? 5,
     // تناسب سعر الباقة مع أيام الدوام: الأسعار المعلنة لدوام prorateBase أيام أسبوعياً.
     prorate: d.prorate !== false,
@@ -119,10 +117,20 @@ export function discountPolicy(data) {
   };
 }
 
-/** سعر الساعة بعد الخصم — يُشتق من hourlyRate المعلن، لا يُكتب. */
-export function flexRate(data, pol) {
-  const base = (data && data.hourlyRate) ?? 25;
-  return Math.round(base * (1 - pol.hourlyOff / 100) * 100) / 100;
+/** سعر الساعة المعتمد لهذه المدة وعدد الساعات، أو null إن كانت الساعات لها باقة معلنة. */
+export function flexRate(pol, duration, hours) {
+  const t = pol.hourlyRates && pol.hourlyRates[duration];
+  const r = t && t[String(hours)];
+  return typeof r === 'number' && r > 0 ? r : null;
+}
+
+/** كل الساعات التي لها سعر ساعة معتمد في أي مدة. */
+export function flexHours(pol) {
+  const set = new Set();
+  for (const d of Object.keys(pol.hourlyRates || {})) {
+    for (const h of Object.keys(pol.hourlyRates[d])) set.add(Number(h));
+  }
+  return [...set].sort((a, b) => a - b);
 }
 
 /** هل لهذه الساعات باقة معلنة؟ */
@@ -223,52 +231,29 @@ function rawQuote(data, input) {
     });
   }
 
-  /* خصم الدوام المرن: من لا تقابل ساعاتِه باقةٌ معلنة ويشترك شهرياً يُسعَّر بالأرخص من:
-       (١) كل ساعات الدوام × سعر ساعة مخفَّض (hourlyOff) — يفيد قليلي الساعات والأيام،
-       (٢) نفس التركيبة المعلنة مع خصم packageOff% على أسطر الباقات المرقّاة — يفيد 7 و9 ساعات.
-     الباقات المعلنة لا تُمَس إطلاقاً، ولا يُخصم سطرٌ شريحته تساوي ساعات الطفل. */
+  /* الباقات غير الرسمية (2/3/7/9 ساعات) تُسعَّر بسعر ساعة محدد لكل مدة:
+     السعر = عدد الساعات الكلي × سعر الساعة. فمن يطلب 36 ساعة لا يدفع كمن يطلب 48 ساعة.
+     ويُؤخذ الأرخص بينه وبين السعر المعلن، فلا يتجاوزه أبداً.
+     الساعات التي لها باقة معلنة (والساعة الواحدة) لا تُمَس. */
   const pol = pol0;
   const duration = input.duration || durationOf(weeks, cfg);
-  const rate = flexRate(data, pol);
+  const rate = pol.active && !hasOfficialPackage(data, h) ? flexRate(pol, duration, h) : null;
   const down = roundDown;
-  const eligible = pol.active && h >= pol.minHours &&
-    !hasOfficialPackage(data, h) && pol.durations.includes(duration);
 
-  const hourlyFlex = eligible ? down(totalHours * rate) : Infinity;
-  const pkgItems = eligible
-    ? items.map(i => (i.tier && i.tier > h
-      ? Object.assign({}, i, { sum: down(i.sum * (1 - pol.packageOff / 100)), listSum: i.sum, flex: true, url: null })
-      : i))
-    : items;
-  const pkgFlex = eligible ? pkgItems.reduce((a, i) => a + i.sum, 0) : Infinity;
-
-  const bestFlex = Math.min(hourlyFlex, pkgFlex);
-  const flex = eligible && bestFlex < listPerChild;
+  const flexCost = rate !== null ? down(totalHours * rate) : Infinity;
+  const flex = flexCost < listPerChild;
 
   let perChild = listPerChild;
   if (flex) {
-    perChild = bestFlex;
+    perChild = flexCost;
+    // سعر الساعة لا يقابله منتج في المتجر، فلا رابط شراء له.
     items.length = 0;
-    if (hourlyFlex <= pkgFlex) {
-      // سعر مرن لا يقابله منتج في المتجر، فلا رابط شراء له.
-      items.push({
-        key: 'flex', tier: null, count: 1, unitCost: hourlyFlex, sum: hourlyFlex, url: null, flex: true,
-        title: 'اشتراك مرن · ' + ar(h, HOUR_F) + ' يومياً',
-        detail: ar(totalHours, HOUR_F) + ' × ' + rate + ' ريال (سعر الساعة المخفَّض بدل ' +
-          cfg.hourly + ') · يغطي ' + coverDays(totalDays)
-      });
-    } else {
-      for (const i of pkgItems) {
-        if (!i.flex) { items.push(i); continue; }
-        const off = Math.round((1 - i.sum / i.listSum) * 1000) / 10;
-        items.push(Object.assign({}, i, {
-          title: 'اشتراك مرن · ' + i.title,
-          detail: i.sum + ' ريال بدل ' + i.listSum + ' (−' + off + '%) · ' +
-            // يُحذف «X ريال للواحد …» من التفصيل كي لا يتكرر المبلغ مع «بدل X»
-            i.detail.replace(/^\d+ ريال للواحد[^·]*· /, '')
-        }));
-      }
-    }
+    items.push({
+      key: 'flex', tier: null, count: 1, unitCost: flexCost, sum: flexCost, url: null,
+      flex: true, prorated: false,
+      title: 'اشتراك مرن · ' + ar(h, HOUR_F) + ' يومياً',
+      detail: ar(totalHours, HOUR_F) + ' × ' + rate + ' ريال للساعة · يغطي ' + coverDays(totalDays)
+    });
   }
 
   const gross = perChild * kids;
@@ -295,17 +280,13 @@ function rawQuote(data, input) {
   if (m.tier) { const n = Math.ceil(totalDays / m.days); rows.push({ key: 'month', label: 'اشتراك شهري', detail: ar(n, MONTH_F) + ' × ' + m.cost + ' ريال', sum: m.cost * n }); }
   if (t.tier) { const n = Math.ceil(totalDays / t.days); rows.push({ key: 'term', label: 'اشتراك بالترم', detail: ar(n, TERM_F) + ' × ' + t.cost + ' ريال', sum: t.cost * n }); }
 
-  const flexKind = flex ? (hourlyFlex <= pkgFlex ? 'hourly' : 'package') : null;
   const upgradeNote = flex
-    ? (flexKind === 'hourly'
-      ? 'لا توجد باقة ' + h + ' ساعات، فحُسب اشتراك مرن بسعر ساعة ' + rate + ' ريال (أقل ' +
-        pol.hourlyOff + '% من ' + cfg.hourly + ') بدل ' + listPerChild + ' ريال بالأسعار المعلنة.'
-      : 'لا توجد باقة ' + h + ' ساعات، فحُسبت على باقة ' + upTier + ' ساعات مخصومة ' +
-        pol.packageOff + '% — ' + perChild + ' ريال بدل ' + listPerChild + ' المعلن.')
+    ? 'لا توجد باقة ' + h + ' ساعات، فحُسب اشتراك مرن بسعر ساعة ' + rate + ' ريال: ' +
+      totalHours + ' ساعة × ' + rate + ' = ' + perChild + ' ريال، بدل ' + listPerChild + ' بالأسعار المعلنة.'
     : (upgraded ? 'لا توجد باقة ' + h + ' ساعات، فحُسبت على أقرب باقة أعلى: ' + upTier + ' ساعات.' : '');
 
   return {
-    cfg, pol, duration, flex, flexKind, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
+    cfg, pol, duration, flex, flexRate: rate, listPerChild, flexSaving: listPerChild - perChild,
     prorated: share < 1, share, pricedAs: h,
     period: { key: tab.key, label: tab.label, categoryUrl: tab.categoryUrl, hourUrl: tab.hour.url },
     hours: h, daysPerWeek: dpw, weeks, kids, totalDays, totalHours,

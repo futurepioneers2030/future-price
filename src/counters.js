@@ -110,7 +110,7 @@ function basketCard(q) {
     el('h2', { class: 'rw-card__title' }, 'كيف حسبنا السعر'),
     el('div', { class: 'rw-card__note' }, 'اخترنا لك: ' + q.labels.chosen),
     el('div', { class: 'rw-card__hint' }, q.flex
-      ? 'لا توجد باقة ' + q.hours + ' ساعات — اشتراك مرن بسعر ساعة ' + q.flexRate + ' ريال بدل ' + q.cfg.hourly
+      ? 'لا توجد باقة ' + q.hours + ' ساعات — سعر الساعة لهذه الباقة ' + q.flexRate + ' ريال × ' + q.totalHours + ' ساعة'
       : (q.upgraded
         ? 'لا توجد باقة ' + q.hours + ' ساعات — الحساب على أقرب باقة أعلى: ' + q.upTier + ' ساعات'
         : 'باقة ' + q.hours + ' ساعات متاحة مباشرة')),
